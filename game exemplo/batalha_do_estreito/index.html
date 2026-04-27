@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estreito de Ormuz - Batalha Naval 3D</title>
+    <!-- Fontes e Estilos -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- Cabeçalho com Logo -->
+    <header id="game-header">
+        <h1 class="logo-main">BATALHA DO <span>ESTREITO</span></h1>
+        <p class="logo-sub">OPERAÇÃO KAMIKAZE</p>
+    </header>
+
+    <!-- HUD Superior Tático -->
+    <div id="hud-top">
+        <div class="hud-item balance">
+            <label>SALDO OPERACIONAL</label>
+            <span id="balance-display">R$ 1.000,00</span>
+        </div>
+        <div class="hud-item lives">
+            <div class="lives-container">
+                <span class="life-icon" id="life-1">🔋</span>
+                <span class="life-icon" id="life-2">🔋</span>
+                <span class="life-icon" id="life-3">🔋</span>
+            </div>
+            <label>SISTEMAS DO DRONE</label>
+        </div>
+    </div>
+
+    <!-- Painel de Apostas Centralizado (Inferior) -->
+    <div id="bet-panel">
+        <div class="multiplier-track">
+            <div class="multiplier-item" id="mult-1">x2.0</div>
+            <div class="multiplier-item" id="mult-2">x3.0</div>
+            <div class="multiplier-item" id="mult-3">x4.0</div>
+        </div>
+
+        <div class="bet-controls">
+            <div class="input-row">
+                <div class="input-group">
+                    <label>MONTANTE DA APOSTA</label>
+                    <input type="number" id="bet-input" value="10.00" min="1" step="1">
+                </div>
+                <div class="quick-bets">
+                    <button class="quick-btn" data-mod="0.5">1/2</button>
+                    <button class="quick-btn" data-mod="2">2X</button>
+                </div>
+            </div>
+            <button id="place-bet-btn" class="casino-btn">INICIAR MISSÃO</button>
+        </div>
+        
+        <div id="status-display">SISTEMA PRONTO</div>
+    </div>
+
+    <!-- Modal de Vitória Parcial (Cash Out) -->
+    <div id="cashout-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2 id="modal-title">NAVIO DESTRUÍDO!</h2>
+            <p id="modal-payout">Lucro atual: R$ 0,00</p>
+            <div class="modal-buttons">
+                <button id="cashout-btn" class="casino-btn win">CASH OUT (SACAR)</button>
+                <button id="continue-btn" class="casino-btn continue">CONTINUAR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI Overlay para Mensagens ("Acertou Miseravi") -->
+    <div id="game-overlay">
+        <div id="feedback-text"></div>
+    </div>
+
+
+    <canvas id="game-canvas"></canvas>
+
+    <!-- HUD do Drone FPV -->
+    <div id="drone-hud" class="drone-hud hidden">
+        <div class="scanlines"></div>
+        <div class="hud-top">
+            <span class="rec-blink">● REC</span>
+            <span id="hud-latlong">LAT: 25.04 N / LONG: 121.50 E</span>
+        </div>
+        <div class="crosshair-container">
+            <div class="crosshair"></div>
+        </div>
+        <div class="telemetry side-left">
+            <div class="bar-container"><div id="alt-bar" class="bar-fill"></div></div>
+            <span>ALT: <span id="hud-alt">12.0</span>m</span>
+        </div>
+        <div class="telemetry side-right">
+            <div class="bar-container"><div id="speed-bar" class="bar-fill"></div></div>
+            <span>SPD: <span id="hud-spd">45</span>km/h</span>
+        </div>
+        <div class="hud-bottom">
+            <span>SIG: 📶 STRONG</span>
+            <span>BAT: 88%</span>
+        </div>
+    </div>
+
+    <!-- Scripts do Jogo -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+
+</body>
+
+</html>

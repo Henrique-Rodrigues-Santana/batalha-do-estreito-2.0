@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Batalha Naval Multiplayer - Operação Kamikaze. Jogue batalha naval online com apostas em tempo real.">
+    <meta name="theme-color" content="#050b14">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Batalha do Estreito — Operação Multiplayer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Loading -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <h2>INICIANDO OPERAÇÃO</h2>
+        <p>Conectando ao servidor tático</p>
+    </div>
+
+    <!-- Connection Status -->
+    <div id="connection-status" class="connection-status disconnected">🔴 OFFLINE</div>
+
+    <!-- Header -->
+    <header id="game-header">
+        <h1 class="logo-main">BATALHA DO <span>ESTREITO</span></h1>
+        <p class="logo-sub">OPERAÇÃO MULTIPLAYER</p>
+    </header>
+
+    <!-- Footer -->
+    <div class="game-stats">
+        <span>⚓ MULTIPLAYER</span> ·
+        <span>ELO</span>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+
+    <script>
+        // Loading fade out
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.opacity = '0';
+                    setTimeout(() => loading.style.display = 'none', 500);
+                }
+            }, 800);
+        });
+
+        // Global notification system
+        window.showNotification = function(message, type = 'info') {
+            const el = document.createElement('div');
+            el.className = `notification ${type}`;
+            el.innerHTML = `<strong>${type.toUpperCase()}</strong><br>${message}`;
+            document.body.appendChild(el);
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateX(120%)';
+                el.style.transition = '0.3s ease';
+                setTimeout(() => el.remove(), 300);
+            }, 3000);
+        };
+
+        window.addEventListener('online', () => showNotification('Conexão restaurada!', 'success'));
+        window.addEventListener('offline', () => showNotification('Sem conexão!', 'error'));
+    </script>
+</body>
+
+</html>

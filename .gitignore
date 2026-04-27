@@ -1,0 +1,40 @@
+# Dependências do Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Banco de dados SQLite (Não devemos versionar o banco populado com dados locais)
+fonte/database/*.db
+fonte/database/*.sqlite
+fonte/database/*.sqlite3
+
+# Arquivos de ambiente e chaves secretas
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Logs
+logs
+*.log
+
+# Arquivos de sistema operacional (Mac/Windows)
+.DS_Store
+Thumbs.db
+
+# Pastas de cache e build (se vier a usar no futuro)
+dist/
+build/
+.cache/
+.parcel-cache/
+
+# Arquivos de editores/IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
