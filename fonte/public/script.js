@@ -97,44 +97,42 @@ class MultiplayerGame {
                     <button id="lobby-refresh-btn" class="casino-btn" style="margin-top:16px;width:100%;">🔄 ATUALIZAR</button>
                 </div>`,
             'placement-screen': `
-                <div class="game-container" style="max-width:500px;">
-                    <div class="game-header">
-                        <div class="turn-indicator my-turn" id="placement-info">⚓ POSICIONE SUA FROTA</div>
-                        <div class="game-info">
-                            <span id="placement-timer" style="color:var(--gold);">⏱️ 50s</span>
+                <div class="game-container" style="position:relative; z-index:10; background:transparent; box-shadow:none; pointer-events:none; height:100vh; display:flex; flex-direction:column; align-items:center; padding-top:20px;">
+                    <div style="background:rgba(5, 11, 20, 0.85); backdrop-filter:blur(10px); border:1px solid var(--accent); padding:15px; border-radius:8px; pointer-events:auto; text-align:center; max-width:400px; width:100%;">
+                        <div class="game-header" style="margin-bottom:10px;">
+                            <div class="turn-indicator my-turn" id="placement-info" style="font-size:0.9rem;">⚓ POSICIONE SUA FROTA</div>
+                            <div class="game-info"><span id="placement-timer" style="color:var(--gold);">⏱️ 50s</span></div>
                         </div>
-                    </div>
-                    <div style="text-align:center;margin-bottom:10px;font-size:0.8rem;color:var(--text-dim);">
-                        Navio: <span id="current-ship-name" style="color:var(--accent);font-weight:bold;">Porta-Aviões (5)</span> <br>
-                        <button id="rotate-ship-btn" class="small-btn" style="margin-top:8px;">🔄 GIRAR (Atualmente: HORIZONTAL)</button>
-                        <button id="auto-place-btn" class="small-btn" style="margin-top:8px;background:var(--accent);color:black;">🎲 POSICIONAR ALEATÓRIO</button>
-                    </div>
-                    <div class="boards-container" style="justify-content:center;">
-                        <div class="board-section">
-                            <div id="placement-board" class="game-board"></div>
+                        <div style="font-size:0.8rem;color:var(--text-dim);">
+                            Navio: <span id="current-ship-name" style="color:var(--accent);font-weight:bold;">Porta-Aviões (5)</span>
+                            <div style="margin-top:10px; display:flex; gap:10px; justify-content:center;">
+                                <button id="rotate-ship-btn" class="small-btn">🔄 GIRAR (HORIZONTAL)</button>
+                                <button id="auto-place-btn" class="small-btn" style="background:var(--accent);color:black;">🎲 ALEATÓRIO</button>
+                            </div>
                         </div>
                     </div>
                 </div>`,
             'game-screen': `
-                <div class="game-container">
-                    <div class="game-header">
-                        <div class="turn-indicator" id="turn-indicator">⏳ AGUARDANDO...</div>
-                        <div class="game-info">
-                            <span id="game-score">🎯 0</span>
-                            <span id="game-timer">⏱️ 30s</span>
-                        </div>
+                <canvas id="game-canvas" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;"></canvas>
+                <div id="game-overlay" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100;pointer-events:none;">
+                    <div id="feedback-text"></div>
+                </div>
+                <div id="drone-hud" class="drone-hud hidden">
+                    <div class="scanlines"></div>
+                    <div class="hud-top"><span class="rec-blink">● REC</span><span id="hud-latlong">LAT: 25.04 N / LONG: 121.50 E</span></div>
+                    <div class="crosshair-container"><div class="crosshair"></div></div>
+                    <div class="telemetry side-left"><div class="bar-container"><div id="alt-bar" class="bar-fill"></div></div><span>ALT: <span id="hud-alt">12.0</span>m</span></div>
+                    <div class="telemetry side-right"><div class="bar-container"><div id="speed-bar" class="bar-fill"></div></div><span>SPD: <span id="hud-spd">45</span>km/h</span></div>
+                    <div class="hud-bottom"><span>SIG: 📶 STRONG</span><span>BAT: 88%</span></div>
+                </div>
+                <div id="game-hud" style="position:fixed;top:15px;left:50%;transform:translateX(-50%);z-index:50;pointer-events:none;">
+                    <div style="background:rgba(5,11,20,0.85);backdrop-filter:blur(10px);border:1px solid var(--accent);border-radius:8px;padding:8px 24px;display:flex;gap:20px;align-items:center;">
+                        <div class="turn-indicator" id="turn-indicator" style="font-size:0.85rem;">⏳ AGUARDANDO...</div>
+                        <span id="game-timer" style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:var(--gold);">⏱️ 20s</span>
                     </div>
-                    <div class="boards-container">
-                        <div class="board-section">
-                            <h4>MEU TABULEIRO</h4>
-                            <div id="my-board" class="game-board"></div>
-                        </div>
-                        <div class="board-section">
-                            <h4>TABULEIRO INIMIGO</h4>
-                            <div id="enemy-board" class="game-board"></div>
-                        </div>
-                    </div>
-                    <button id="forfeit-btn" class="casino-btn danger">🏳️ DESISTIR</button>
+                </div>
+                <div style="position:fixed;bottom:20px;right:20px;z-index:50;">
+                    <button id="forfeit-btn" class="casino-btn danger" style="padding:10px 20px;font-size:0.8rem;">🏳️ ABORTAR</button>
                 </div>`
         };
 
@@ -277,7 +275,7 @@ class MultiplayerGame {
         this.socket.on('player_joined', data => this.updatePlayersList(data.players));
 
         this.socket.on('match_starting', data => {
-            this.notify(`Partida iniciando! Aposta: R$ ${data.betAmount}`, 'success');
+            this.notify('Partida iniciando!', 'success');
         });
 
         this.socket.on('placement_phase_started', data => this.startPlacementPhase(data));
@@ -320,7 +318,6 @@ class MultiplayerGame {
 
     showGameScreen() {
         this.switchScreen('game-screen');
-        this.createBoards();
     }
 
     // ==================== ROOM ====================
@@ -456,18 +453,30 @@ class MultiplayerGame {
 
         document.getElementById('rotate-ship-btn').onclick = () => {
             this.isHorizontal = !this.isHorizontal;
-            document.getElementById('rotate-ship-btn').innerText = `🔄 GIRAR (Atualmente: ${this.isHorizontal ? 'HORIZONTAL' : 'VERTICAL'})`;
+            document.getElementById('rotate-ship-btn').innerText = `🔄 GIRAR (${this.isHorizontal ? 'HORIZONTAL' : 'VERTICAL'})`;
+            this.engine3d.clearPreview(); // Limpa preview ao girar
         };
 
         document.getElementById('auto-place-btn').onclick = () => {
             // Se clicar em aleatório, gera no cliente e envia
             this.placementBoard = this.generateRandomBoardClient();
             this.currentShipIndex = this.shipsToPlace.length;
-            this.renderPlacementBoard();
+            this.engine3d.renderShips(this.placementBoard);
+            this.engine3d.clearPreview();
             this.sendPlacedShips();
         };
 
-        this.renderPlacementBoard();
+        if (!this.engine3d) {
+            this.engine3d = new Engine3D(
+                (col, row) => this.attackCell(row, col),
+                (col, row) => this.placeShipAt(row, col),
+                (col, row) => this.previewShip(row, col)
+            );
+        }
+        
+        this.engine3d.start('PLACEMENT');
+        this.engine3d.renderShips(this.placementBoard);
+
         this.startPlacementTimer();
     }
 
@@ -493,59 +502,22 @@ class MultiplayerGame {
     }
 
     renderPlacementBoard() {
-        const boardDiv = document.getElementById('placement-board');
-        if (!boardDiv) return;
-        boardDiv.innerHTML = '';
-        const cols = [' ','A','B','C','D','E','F','G','H','I','J'];
-        
-        cols.forEach(c => {
-            const lbl = document.createElement('div');
-            lbl.className = 'board-label';
-            lbl.innerText = c;
-            boardDiv.appendChild(lbl);
-        });
-
-        for (let i = 0; i < 10; i++) {
-            const lbl = document.createElement('div');
-            lbl.className = 'board-label';
-            lbl.innerText = i + 1;
-            boardDiv.appendChild(lbl);
-
-            for (let j = 0; j < 10; j++) {
-                const cell = document.createElement('div');
-                cell.className = 'board-cell';
-                if (this.placementBoard[i][j]) cell.classList.add('ship');
-                
-                cell.addEventListener('mouseenter', () => this.previewShip(i, j, true));
-                cell.addEventListener('mouseleave', () => this.previewShip(i, j, false));
-                cell.addEventListener('click', () => this.placeShipAt(i, j));
-                
-                cell.dataset.r = i;
-                cell.dataset.c = j;
-                boardDiv.appendChild(cell);
-            }
-        }
+        // Obsoleto - agora usamos this.engine3d.renderShips
     }
 
-    previewShip(row, col, show) {
-        if (this.currentShipIndex >= this.shipsToPlace.length) return;
+    previewShip(row, col) {
+        if (this.currentShipIndex >= this.shipsToPlace.length) {
+            this.engine3d.clearPreview();
+            return;
+        }
+        if (row < 0 || col < 0) {
+            this.engine3d.clearPreview();
+            return;
+        }
+        
         const ship = this.shipsToPlace[this.currentShipIndex];
         const valid = this.isValidPlacement(row, col, ship.size, this.isHorizontal);
-        
-        for (let k = 0; k < ship.size; k++) {
-            const r = this.isHorizontal ? row : row + k;
-            const c = this.isHorizontal ? col + k : col;
-            if (r < 10 && c < 10) {
-                const cellEl = document.querySelector(`#placement-board .board-cell[data-r="${r}"][data-c="${c}"]`);
-                if (cellEl) {
-                    if (show) {
-                        cellEl.style.backgroundColor = valid ? 'rgba(0,255,136,0.5)' : 'rgba(255,68,0,0.5)';
-                    } else {
-                        cellEl.style.backgroundColor = '';
-                    }
-                }
-            }
-        }
+        this.engine3d.renderPreview(row, col, ship.size, this.isHorizontal, valid);
     }
 
     isValidPlacement(row, col, size, isHoriz) {
@@ -570,7 +542,7 @@ class MultiplayerGame {
                 this.placementBoard[r][c] = { id: ship.id, size: ship.size, part: k };
             }
             this.currentShipIndex++;
-            this.renderPlacementBoard();
+            this.engine3d.renderShips(this.placementBoard);
             
             if (this.currentShipIndex < this.shipsToPlace.length) {
                 const nextShip = this.shipsToPlace[this.currentShipIndex];
@@ -578,6 +550,7 @@ class MultiplayerGame {
             } else {
                 document.getElementById('placement-info').innerText = '✅ FROTA POSICIONADA! AGUARDANDO ADVERSÁRIO...';
                 document.getElementById('current-ship-name').parentElement.style.display = 'none';
+                this.engine3d.clearPreview();
                 this.sendPlacedShips();
             }
         } else {
@@ -639,6 +612,16 @@ class MultiplayerGame {
         this.showGameScreen();
         this.updateTurnIndicator();
         this.resetTurnTimer(20);
+
+        // Start game in ATTACK mode
+        if (!this.engine3d) {
+            this.engine3d = new Engine3D(
+                (col, row) => this.attackCell(row, col),
+                (col, row) => this.placeShipAt(row, col),
+                (col, row) => this.previewShip(row, col)
+            );
+        }
+        this.engine3d.start('ATTACK');
     }
 
     createEmptyBoard() {
@@ -646,11 +629,10 @@ class MultiplayerGame {
     }
 
     createBoards() {
+        // Agora só criamos o Radar Tático (my-board)
         const myDiv = document.getElementById('my-board');
-        const enemyDiv = document.getElementById('enemy-board');
-        if (!myDiv || !enemyDiv) return;
+        if (!myDiv) return;
         myDiv.innerHTML = '';
-        enemyDiv.innerHTML = '';
 
         const cols = [' ','A','B','C','D','E','F','G','H','I','J'];
 
@@ -664,19 +646,14 @@ class MultiplayerGame {
         };
 
         addHeaders(myDiv);
-        addHeaders(enemyDiv);
 
         for (let i = 0; i < 10; i++) {
-            // Row labels
-            [myDiv, enemyDiv].forEach(container => {
-                const lbl = document.createElement('div');
-                lbl.className = 'board-label';
-                lbl.innerText = i + 1;
-                container.appendChild(lbl);
-            });
+            const lbl = document.createElement('div');
+            lbl.className = 'board-label';
+            lbl.innerText = i + 1;
+            myDiv.appendChild(lbl);
 
             for (let j = 0; j < 10; j++) {
-                // My board cell
                 const mc = document.createElement('div');
                 mc.className = 'board-cell';
                 mc.dataset.row = i;
@@ -685,14 +662,6 @@ class MultiplayerGame {
                     mc.classList.add('ship');
                 }
                 myDiv.appendChild(mc);
-
-                // Enemy board cell
-                const ec = document.createElement('div');
-                ec.className = 'board-cell';
-                ec.dataset.row = i;
-                ec.dataset.col = j;
-                ec.addEventListener('click', () => this.attackCell(i, j));
-                enemyDiv.appendChild(ec);
             }
         }
     }
@@ -713,35 +682,52 @@ class MultiplayerGame {
         this.updateTurnIndicator();
     }
 
-    handleActionResult(data) {
+    async handleActionResult(data) {
         const { hit, shipSunk, cell, score, gameEnded, attackerId } = data;
         if (!cell) return;
         const [row, col] = cell;
         const isMyAttack = attackerId === this.user.id;
-        const boardId = isMyAttack ? 'enemy-board' : 'my-board';
-
-        const cellEl = document.querySelector(`#${boardId} .board-cell[data-row='${row}'][data-col='${col}']`);
-        if (cellEl) {
-            cellEl.classList.add(hit ? 'hit' : 'miss');
-            if (hit && shipSunk) cellEl.classList.add('sunk');
-        }
 
         if (isMyAttack) {
             this.gameState.enemyBoard[row][col] = hit ? 'hit' : 'miss';
-            const scoreEl = document.getElementById('game-score');
-            if (scoreEl) scoreEl.innerHTML = `🎯 ${score}`;
+            
+            // Animacao do Drone
+            if (this.engine3d) {
+                // A UI aguarda o fim da animação
+                await this.engine3d.processAttack(col, row, hit, shipSunk, shipSunk);
+            }
+
+            if (!gameEnded) {
+                const msg = hit ? (shipSunk ? '💥 AFUNDOU!' : '🎯 ACERTOU!') : '💧 ÁGUA';
+                this.showFeedback(msg, hit ? 'text-hit' : 'text-miss');
+            }
         } else {
             this.gameState.myBoard[row][col] = hit ? 'hit' : 'miss';
-        }
-
-        if (!gameEnded) {
-            if (data.timeout) {
-                this.notify('Tempo esgotado! Turno passado.', 'warning');
-            } else {
-                const msg = hit ? (shipSunk ? '💥 AFUNDOU!' : '🎯 ACERTOU!') : '💧 ÁGUA';
-                this.showFeedback(msg);
+            
+            // Camera Shake e som de impacto se tomamos dano
+            if (this.engine3d) {
+                if (hit) {
+                    AudioManager.getInstance().play('hit');
+                    this.engine3d.vfx.shake(1.5, 0.5);
+                    this.showFeedback("INIMIGO ACERTOU SUA FROTA!", "text-miss");
+                } else {
+                    AudioManager.getInstance().play('miss');
+                    this.showFeedback("INIMIGO ERROU!", "text-hit");
+                }
             }
         }
+
+        if (data.timeout && !gameEnded) {
+            this.notify('Tempo esgotado! Turno passado.', 'warning');
+        }
+    }
+
+    showFeedback(txt, cls = '') {
+        const el = document.getElementById('feedback-text');
+        if (!el) return;
+        el.innerText = txt;
+        el.className = cls;
+        gsap.fromTo(el, { opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1.2, duration: 0.4, yoyo: true, repeat: 1 });
     }
 
     updateTurnIndicator() {
@@ -781,27 +767,16 @@ class MultiplayerGame {
         }, 1000);
     }
 
-    showFeedback(message) {
-        let el = document.getElementById('feedback-overlay');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'feedback-overlay';
-            el.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-                background:rgba(5,11,20,0.92);color:#ffd700;padding:16px 32px;border-radius:12px;
-                font-family:'Orbitron',sans-serif;font-size:clamp(1rem,4vw,1.5rem);font-weight:700;
-                z-index:5000;text-align:center;border:1px solid rgba(255,215,0,0.3);
-                pointer-events:none;transition:opacity 0.4s;`;
-            document.body.appendChild(el);
-        }
-        el.innerText = message;
-        el.style.opacity = '1';
-        el.style.display = 'block';
-        setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.style.display = 'none', 400); }, 1800);
-    }
+
 
     async endGame(data) {
         if (this.gameState?.turnTimer) clearInterval(this.gameState.turnTimer);
         const isWinner = data.winnerId === this.user.id;
+
+        // Parar e esconder Engine 3D
+        if (this.engine3d) {
+            this.engine3d.stop();
+        }
 
         // Modal
         const overlay = document.createElement('div');
@@ -811,9 +786,6 @@ class MultiplayerGame {
                 <h2 style="color:${isWinner ? 'var(--success)' : 'var(--danger)'}; font-size:1.4rem;">
                     ${isWinner ? '🏆 VITÓRIA!' : '💀 DERROTA'}
                 </h2>
-                <p style="margin:12px 0;font-size:1.1rem;color:var(--gold);">
-                    ${isWinner ? `+R$ ${data.prize?.toFixed(2) || '0.00'}` : 'Aposta perdida'}
-                </p>
                 <div class="modal-buttons">
                     <button class="casino-btn" id="modal-close-btn">VOLTAR AO MENU</button>
                 </div>
@@ -836,7 +808,7 @@ class MultiplayerGame {
         overlay.innerHTML = `
             <div class="modal-content">
                 <h2 style="color:var(--gold);font-size:1rem;">DESISTIR?</h2>
-                <p style="margin:10px 0;font-size:0.85rem;color:var(--text-dim);">Você perderá a aposta.</p>
+                <p style="margin:10px 0;font-size:0.85rem;color:var(--text-dim);">Você perderá a partida.</p>
                 <div class="modal-buttons" style="flex-direction:row;justify-content:center;">
                     <button class="casino-btn danger" id="confirm-forfeit">SIM</button>
                     <button class="casino-btn" id="cancel-forfeit">NÃO</button>
