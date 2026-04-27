@@ -97,11 +97,12 @@ class MultiplayerGame {
                     <button id="lobby-refresh-btn" class="casino-btn" style="margin-top:16px;width:100%;">🔄 ATUALIZAR</button>
                 </div>`,
             'placement-screen': `
-                <div class="game-container" style="position:relative; z-index:10; background:transparent; box-shadow:none; pointer-events:none; height:100vh; display:flex; flex-direction:column; align-items:center; padding-top:20px;">
-                    <div style="background:rgba(5, 11, 20, 0.85); backdrop-filter:blur(10px); border:1px solid var(--accent); padding:15px; border-radius:8px; pointer-events:auto; text-align:center; max-width:400px; width:100%;">
-                        <div class="game-header" style="margin-bottom:10px;">
-                            <div class="turn-indicator my-turn" id="placement-info" style="font-size:0.9rem;">⚓ POSICIONE SUA FROTA</div>
-                            <div class="game-info"><span id="placement-timer" style="color:var(--gold);">⏱️ 50s</span></div>
+                <canvas id="game-canvas-placement" style="display:none;"></canvas>
+                <div style="position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:5; pointer-events:none;">
+                    <div style="position:absolute; top:20px; left:50%; transform:translateX(-50%); background:rgba(5, 11, 20, 0.9); backdrop-filter:blur(10px); border:1px solid var(--accent); padding:15px 25px; border-radius:12px; pointer-events:auto; text-align:center; max-width:420px; width:90%; z-index:10;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <div class="turn-indicator my-turn" id="placement-info" style="font-size:0.85rem;">⚓ POSICIONE SUA FROTA</div>
+                            <span id="placement-timer" style="color:var(--gold); font-family:'Orbitron',sans-serif; font-size:0.85rem;">⏱️ 50s</span>
                         </div>
                         <div style="font-size:0.8rem;color:var(--text-dim);">
                             Navio: <span id="current-ship-name" style="color:var(--accent);font-weight:bold;">Porta-Aviões (5)</span>
@@ -113,7 +114,6 @@ class MultiplayerGame {
                     </div>
                 </div>`,
             'game-screen': `
-                <canvas id="game-canvas" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;"></canvas>
                 <div id="game-overlay" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100;pointer-events:none;">
                     <div id="feedback-text"></div>
                 </div>
@@ -135,6 +135,14 @@ class MultiplayerGame {
                     <button id="forfeit-btn" class="casino-btn danger" style="padding:10px 20px;font-size:0.8rem;">🏳️ ABORTAR</button>
                 </div>`
         };
+
+        // Adiciona o canvas 3D diretamente no body como fundo fixo
+        if (!document.getElementById('game-canvas')) {
+            const canvas = document.createElement('canvas');
+            canvas.id = 'game-canvas';
+            canvas.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;';
+            document.body.appendChild(canvas);
+        }
 
         Object.entries(screens).forEach(([id, html]) => {
             const div = document.createElement('div');
@@ -238,6 +246,7 @@ class MultiplayerGame {
     logout() {
         localStorage.removeItem('game_token');
         localStorage.removeItem('game_user');
+        if (this.engine3d) this.engine3d.stop();
         this.socket?.disconnect();
         this.socket = null;
         this.token = null;
@@ -314,6 +323,7 @@ class MultiplayerGame {
         this.switchScreen('menu-screen');
         const el = document.getElementById('username-display');
         if (el) el.innerText = `👤 ${this.user?.username || ''}`;
+        if (this.engine3d) this.engine3d.stop();
     }
 
     showGameScreen() {

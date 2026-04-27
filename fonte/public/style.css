@@ -120,6 +120,29 @@ body::after {
     transform: scale(0.97);
 }
 
+/* Telas 3D: não bloqueiam cliques no canvas */
+#placement-screen,
+#game-screen {
+    pointer-events: none;
+    background: none !important;
+}
+
+#placement-screen > *,
+#game-screen > * {
+    pointer-events: none;
+}
+
+#placement-screen button,
+#placement-screen input,
+#game-screen button,
+#game-screen input,
+#placement-screen [style*="pointer-events:auto"],
+#placement-screen [style*="pointer-events: auto"],
+#game-screen [style*="pointer-events:auto"],
+#game-screen [style*="pointer-events: auto"] {
+    pointer-events: auto;
+}
+
 /* ===== GLASS PANELS ===== */
 .auth-container,
 .menu-container,

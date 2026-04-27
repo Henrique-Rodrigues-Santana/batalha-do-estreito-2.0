@@ -187,7 +187,14 @@ class CoreEngine {
         this.camera.position.set(0, 35, 45); // Visão tática normal restaurada
         this.camera.lookAt(0, -3, 0); // Foco no tabuleiro com margem para o céu
 
-        this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true });
+        let canvas = document.getElementById('game-canvas');
+        if (!canvas) {
+            canvas = document.createElement('canvas');
+            canvas.id = 'game-canvas';
+            canvas.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;';
+            document.body.appendChild(canvas);
+        }
+        this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
@@ -858,7 +865,9 @@ class Engine3D {
 
     getIntersectedCell(e) {
         if (!this.isActive) return null;
-        if (e.target && e.target.tagName !== 'CANVAS') return null;
+        // Só processa cliques no canvas
+        const canvas = document.getElementById('game-canvas');
+        if (e.target && e.target !== canvas) return null;
 
         this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -873,7 +882,16 @@ class Engine3D {
 
     handleMouseMove(e) {
         if (this.mode !== 'PLACEMENT') return;
-        const coords = this.getIntersectedCell(e);
+        // Para mousemove, não filtramos por target - queremos preview contínuo
+        if (!this.isActive) return;
+        this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, this.core.camera);
+        const intersects = this.raycaster.intersectObject(this.core.water);
+        let coords = null;
+        if (intersects.length > 0) {
+            coords = this.grid.getGridCoords(intersects[0].point);
+        }
         if (this.onHover) {
             this.onHover(coords ? coords.c : -1, coords ? coords.r : -1);
         }
