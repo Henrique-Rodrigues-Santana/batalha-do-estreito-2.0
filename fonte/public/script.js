@@ -717,8 +717,13 @@ class MultiplayerGame {
             // Camera Shake e som de impacto se tomamos dano
             if (this.engine3d) {
                 if (hit) {
-                    AudioManager.getInstance().play('hit');
-                    this.engine3d.vfx.shake(1.5, 0.5);
+                    if (shipSunk) {
+                        // NOVO: Cena do marinheiro defendendo o navio
+                        await this.engine3d.processDefenseSinking(col, row);
+                    } else {
+                        AudioManager.getInstance().play('hit');
+                        this.engine3d.vfx.shake(1.5, 0.5);
+                    }
                     this.showFeedback("INIMIGO ACERTOU SUA FROTA!", "text-miss");
                 } else {
                     AudioManager.getInstance().play('miss');

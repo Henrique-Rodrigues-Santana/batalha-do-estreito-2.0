@@ -369,6 +369,23 @@ class DroneController {
         this.setupSmoke();
         this.loadModel();
         this.loadTargetModel();
+        this.loadMinigun();
+    }
+
+    loadMinigun() {
+        this.loader.load('assets/arma_perdedor/minigun_animated.glb', (gltf) => {
+            this.minigunModel = gltf.scene;
+            this.minigunModel.visible = false;
+            
+            // Setup Animation
+            if (gltf.animations && gltf.animations.length > 0) {
+                this.minigunMixer = new THREE.AnimationMixer(this.minigunModel);
+                this.minigunAction = this.minigunMixer.clipAction(gltf.animations[0]);
+            }
+
+            this.scene.add(this.minigunModel);
+            console.log("Minigun carregada!");
+        });
     }
 
     loadTargetModel() {
@@ -514,7 +531,11 @@ class DroneController {
         });
     }
 
-    update(time) {
+    update(time, delta) {
+        if (this.minigunMixer && delta) {
+            this.minigunMixer.update(delta);
+        }
+
         if (this.state === 'WAITING') {
             const radius = 15;
             const speed = time * 0.45;
@@ -788,6 +809,211 @@ class DroneController {
 
         await new Promise(r => setTimeout(r, 600));
     }
+
+    createSailor() {
+        const group = new THREE.Group();
+        
+        // Corpo (Uniforme azul)
+        const bodyGeo = new THREE.CylinderGeometry(0.15, 0.2, 0.6, 8);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x000033 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = 0.3;
+        group.add(body);
+
+        // Cabeça
+        const headGeo = new THREE.SphereGeometry(0.1, 8, 8);
+        const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.y = 0.65;
+        group.add(head);
+
+        // Quepe (Chapéu de marinheiro)
+        const hatGeo = new THREE.CylinderGeometry(0.12, 0.1, 0.05, 8);
+        const hatMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const hat = new THREE.Mesh(hatGeo, hatMat);
+        hat.position.y = 0.75;
+        group.add(hat);
+
+        // Braço que aponta/atira
+        const armGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.4, 8);
+        const armMat = new THREE.MeshStandardMaterial({ color: 0x000033 });
+        this.sailorArm = new THREE.Mesh(armGeo, armMat);
+        this.sailorArm.position.set(0.15, 0.45, 0);
+        this.sailorArm.rotation.z = -Math.PI / 2; // Estendido para o lado
+        
+        // Pivot para o braço rotacionar
+        const armPivot = new THREE.Group();
+        armPivot.position.set(0, 0.5, 0);
+        armPivot.add(this.sailorArm);
+        this.sailorArm.position.set(0.2, 0, 0); // Desloca do pivô
+        
+        group.add(armPivot);
+        this.armPivot = armPivot;
+
+        return group;
+    }
+
+    async deployDefenseCinematic(targetPos) {
+        this.state = 'ATTACKING';
+        const originalCamPos = this.camera.position.clone();
+        
+        const hud = document.getElementById('drone-hud');
+        if (hud) hud.classList.add('hidden');
+
+        // Configurar o navio e a minigun
+        if (this.targetModel) {
+            this.targetModel.position.set(targetPos.x, 0, targetPos.z);
+            this.targetModel.visible = true;
+            this.targetModel.rotation.set(0, 0, 0);
+        }
+
+        if (this.minigunModel) {
+            this.minigunModel.visible = true;
+            this.minigunModel.scale.set(1.2, 1.2, 1.2); // Arma maior na tela
+            this.scene.attach(this.minigunModel);
+            // Paramos a animação original de carregamento
+            if (this.minigunAction) this.minigunAction.stop();
+        }
+
+        // POSICIONAR A CÂMERA NO NAVIO (Visão FPS - Fixa)
+        this.camera.position.set(targetPos.x, 1.8, targetPos.z + 1);
+        const lookTarget = new THREE.Vector3(targetPos.x, 40, targetPos.z - 80); // Olhando para o alto, onde o drone vem
+        this.camera.lookAt(lookTarget);
+
+        // Drone começa longe e alto
+        const droneStartPos = new THREE.Vector3(targetPos.x + (Math.random()-0.5)*30, 100, targetPos.z - 150);
+        this.drone.position.copy(droneStartPos);
+        this.drone.visible = true;
+        
+        const tracerGroup = new THREE.Group();
+        this.scene.add(tracerGroup);
+
+        const obj = { t: 0 };
+        let lastShotTime = -1.5; // Inicializa em -1.5 para atirar logo no início
+        
+        await new Promise(resolve => {
+            gsap.to(obj, {
+                t: 1,
+                duration: 8.0,
+                ease: "none",
+                onUpdate: () => {
+                    const t = obj.t;
+                    const pos = droneStartPos.clone().lerp(new THREE.Vector3(targetPos.x, 0.5, targetPos.z), t);
+                    this.drone.position.copy(pos);
+                    this.drone.lookAt(targetPos.x, 0.5, targetPos.z); // Restaurado para cair "de bico"
+                    
+                    // Minigun fixa em relação à câmera, com tremor suave
+                    if (this.minigunModel) {
+                        // Trazendo a arma mais para trás (Z de -1.0 para -0.4) para colar na tela
+                        const offset = new THREE.Vector3(0, -0.3, -0.4); 
+                        
+                        // Efeito de tremor (shake) mais simples e suave
+                        if (Math.random() > 0.2) {
+                            offset.x += (Math.random() - 0.5) * 0.01;
+                            offset.y += (Math.random() - 0.5) * 0.01;
+                            offset.z += Math.random() * 0.01; // Recuo bem sutil
+                        }
+
+                        offset.applyQuaternion(this.camera.quaternion);
+                        this.minigunModel.position.copy(this.camera.position).add(offset);
+                        
+                        // Arma e Câmera acompanham ativamente o drone
+                        this.camera.lookAt(pos);
+                        this.minigunModel.lookAt(pos);
+                        // A rotação extra (Math.PI) foi removida, o modelo deve usar sua "frente" original
+                    }
+
+                    // 1. Disparos da Arma Principal (O Jogador) a cada 1.5 segundos
+                    const elapsed = t * 8.0; // Duração total é 8.0
+                    if (elapsed - lastShotTime >= 1.5) {
+                        lastShotTime = elapsed;
+                        AudioManager.getInstance().play('shoot');
+                        
+                        // Ponto do bico da arma para o flash
+                        const barrelPos = this.camera.position.clone().add(new THREE.Vector3(0, -0.35, -2.5).applyQuaternion(this.camera.quaternion));
+                        
+                        // Projéteis removidos a pedido do usuário. Apenas Muzzle Flash e Som permanecem.
+
+                        // Muzzle Flash
+                        const flash = new THREE.PointLight(0x00f2ff, 4, 5);
+                        flash.position.copy(barrelPos);
+                        this.scene.add(flash);
+                        setTimeout(() => this.scene.remove(flash), 30);
+                    }
+
+                    // 2. Disparos da Tripulação (Vários locais do navio)
+                    if (Math.random() > 0.3) {
+                        const crewSpawn = new THREE.Vector3(
+                            targetPos.x + (Math.random() - 0.5) * 35, 
+                            targetPos.y + 0.5,
+                            targetPos.z + (Math.random() - 0.5) * 35
+                        );
+
+                        const crewShotGeo = new THREE.CylinderGeometry(0.04, 0.04, 5, 8);
+                        const crewShotMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.8 });
+                        const crewShot = new THREE.Mesh(crewShotGeo, crewShotMat);
+                        crewShot.position.copy(crewSpawn);
+                        
+                        // Dispersão de mira
+                        const aimPos = pos.clone().add(new THREE.Vector3((Math.random()-0.5)*15, (Math.random()-0.5)*15, (Math.random()-0.5)*15));
+                        crewShot.lookAt(aimPos);
+                        crewShot.rotateX(Math.PI / 2);
+                        tracerGroup.add(crewShot);
+
+                        gsap.to(crewShot.position, {
+                            x: aimPos.x, y: aimPos.y, z: aimPos.z,
+                            duration: 0.15,
+                            onComplete: () => {
+                                tracerGroup.remove(crewShot);
+                                crewShotGeo.dispose(); crewShotMat.dispose();
+                            }
+                        });
+                    }
+
+                    // Explosões Anti-Aéreas (Flak) no céu
+                    if (Math.random() > 0.75) {
+                        const flakPos = new THREE.Vector3(
+                            pos.x + (Math.random() - 0.5) * 60,
+                            Math.max(20, pos.y + (Math.random() - 0.5) * 40),
+                            pos.z + (Math.random() - 0.5) * 60
+                        );
+                        this.createFlakExplosion(flakPos, tracerGroup);
+                    }
+                },
+                onComplete: resolve
+            });
+        });
+
+        // Impacto final
+        this.state = 'IDLE';
+        this.drone.visible = false;
+        if (this.minigunModel) {
+            this.minigunModel.visible = false;
+            if (this.minigunAction) this.minigunAction.stop();
+        }
+        this.scene.remove(tracerGroup);
+
+        AudioManager.getInstance().play('hit');
+        this.createExplosion(new THREE.Vector3(targetPos.x, 0.5, targetPos.z));
+        
+        // Iniciar afundamento
+        if (this.targetModel) {
+            gsap.to(this.targetModel.position, {
+                y: -5, duration: 6, ease: "power2.in",
+                onComplete: () => { this.targetModel.visible = false; }
+            });
+            gsap.to(this.targetModel.rotation, { x: 0.2, z: -0.1, duration: 6 });
+        }
+
+        // Retornar câmera
+        gsap.to(this.camera.position, {
+            x: originalCamPos.x, y: originalCamPos.y, z: originalCamPos.z,
+            duration: 1.5, ease: "power2.inOut",
+            onUpdate: () => this.camera.lookAt(0, -3, 0)
+        });
+
+        await new Promise(r => setTimeout(r, 1000));
+    }
 }
 
 class Engine3D {
@@ -976,6 +1202,12 @@ class Engine3D {
         this.drone.setWaiting(true);
     }
 
+    async processDefenseSinking(c, r) {
+        const worldPos = this.grid.getWorldPosition(c, r);
+        await this.drone.deployDefenseCinematic(worldPos);
+        this.drone.setWaiting(true);
+    }
+
     createMarker(pos, isHit) {
         const mat = new THREE.MeshStandardMaterial({
             color: isHit ? 0x00ff88 : 0xff4a4a,
@@ -991,12 +1223,15 @@ class Engine3D {
     }
 
     animate() {
-        const time = performance.now() * 0.001;
+        const now = performance.now() * 0.001;
+        const delta = this.lastTime ? now - this.lastTime : 0;
+        this.lastTime = now;
+
         requestAnimationFrame(() => this.animate());
         if (this.isActive) {
-            this.core.update(time);
-            this.drone.update(time);
-            this.core.sunLight.intensity = 2.0 + Math.sin(time) * 0.1;
+            this.core.update(now);
+            this.drone.update(now, delta);
+            this.core.sunLight.intensity = 2.0 + Math.sin(now) * 0.1;
         }
     }
 }
