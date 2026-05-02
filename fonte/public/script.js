@@ -18,17 +18,42 @@ class MultiplayerGame {
     checkAuth() {
         this.token = localStorage.getItem('game_token');
         this.user = JSON.parse(localStorage.getItem('game_user') || 'null');
-        if (this.token && this.user) {
-            this.connectSocket();
-            this.showMainMenu();
-        } else {
-            this.showLoginScreen();
+        
+        // Setup 3D Menu Scene
+        if (!this.engine3d) {
+            // Need empty callbacks for the menu scene
+            this.engine3d = new Engine3D(() => {}, () => {}, () => {});
         }
+        this.engine3d.start('MENU');
+
+        // Splash screen logic
+        this.switchScreen('splash-screen');
+        setTimeout(() => {
+            if (this.token && this.user) {
+                this.connectSocket();
+                this.showMainMenu();
+            } else {
+                this.showLoginScreen();
+            }
+        }, 4000);
     }
 
     // ==================== UI SETUP ====================
     setupUI() {
         const screens = {
+            'splash-screen': `
+                <div style="width:100%;height:100%;background:url('assets/images/Gemini_Generated_Image_3ugg6s3ugg6s3ugg.png') center/cover no-repeat;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:10%;z-index:9999;">
+                    <div style="width:80%;max-width:300px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;overflow:hidden;box-shadow:0 0 10px rgba(0,242,255,0.5);">
+                        <div style="width:100%;height:100%;background:var(--accent);animation:splashBar 4s linear forwards;"></div>
+                    </div>
+                    <div style="color:var(--accent);font-family:'Orbitron',sans-serif;margin-top:10px;font-size:0.8rem;letter-spacing:3px;animation:pulse 1s infinite alternate;text-shadow:0 0 5px rgba(0,0,0,0.8);">CARREGANDO...</div>
+                </div>
+                <style>
+                    #splash-screen { padding: 0 !important; }
+                    @keyframes splashBar { 0% { width: 0%; } 100% { width: 100%; } }
+                    @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
+                </style>
+            `,
             'login-screen': `
                 <div class="auth-container">
                     <h2>⚓ BATALHA DO ESTREITO</h2>
@@ -99,7 +124,7 @@ class MultiplayerGame {
             'placement-screen': `
                 <canvas id="game-canvas-placement" style="display:none;"></canvas>
                 <div style="position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:5; pointer-events:none;">
-                    <div style="position:absolute; top:20px; left:50%; transform:translateX(-50%); background:rgba(5, 11, 20, 0.9); backdrop-filter:blur(10px); border:1px solid var(--accent); padding:15px 25px; border-radius:12px; pointer-events:auto; text-align:center; max-width:420px; width:90%; z-index:10;">
+                    <div style="position:absolute; top:90px; left:50%; transform:translateX(-50%); background:rgba(5, 11, 20, 0.9); backdrop-filter:blur(10px); border:1px solid var(--accent); padding:15px 25px; border-radius:12px; pointer-events:auto; text-align:center; max-width:420px; width:90%; z-index:10;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                             <div class="turn-indicator my-turn" id="placement-info" style="font-size:0.85rem;">⚓ POSICIONE SUA FROTA</div>
                             <span id="placement-timer" style="color:var(--gold); font-family:'Orbitron',sans-serif; font-size:0.85rem;">⏱️ 50s</span>
@@ -125,14 +150,44 @@ class MultiplayerGame {
                     <div class="telemetry side-right"><div class="bar-container"><div id="speed-bar" class="bar-fill"></div></div><span>SPD: <span id="hud-spd">45</span>km/h</span></div>
                     <div class="hud-bottom"><span>SIG: 📶 STRONG</span><span>BAT: 88%</span></div>
                 </div>
-                <div id="game-hud" style="position:fixed;top:15px;left:50%;transform:translateX(-50%);z-index:50;pointer-events:none;">
+                <div id="game-hud" style="position:fixed;top:90px;left:50%;transform:translateX(-50%);z-index:50;pointer-events:none;">
                     <div style="background:rgba(5,11,20,0.85);backdrop-filter:blur(10px);border:1px solid var(--accent);border-radius:8px;padding:8px 24px;display:flex;gap:20px;align-items:center;">
                         <div class="turn-indicator" id="turn-indicator" style="font-size:0.85rem;">⏳ AGUARDANDO...</div>
                         <span id="game-timer" style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:var(--gold);">⏱️ 20s</span>
                     </div>
                 </div>
+                <div id="fleet-hud" class="fleet-hud">
+                    <div class="fleet-hud-label">MINHA FROTA</div>
+                    <!-- Fleet ships will be injected here -->
+                </div>
                 <div style="position:fixed;bottom:20px;right:20px;z-index:50;">
                     <button id="forfeit-btn" class="casino-btn danger" style="padding:10px 20px;font-size:0.8rem;">🏳️ ABORTAR</button>
+                </div>`,
+            'vs-screen': `
+                <div class="vs-overlay">
+                    <div class="vs-players-row">
+                        <div class="vs-player-card left" id="vs-player1">
+                            <div class="vs-avatar">👤</div>
+                            <div class="vs-player-name">Player 1</div>
+                            <div class="vs-player-flag">🇧🇷</div>
+                            <div class="vs-player-stats">
+                                <span>🏆 1200</span>
+                                <span>W/L: 1.5</span>
+                            </div>
+                        </div>
+                        <div class="vs-badge">VS</div>
+                        <div class="vs-player-card right" id="vs-player2">
+                            <div class="vs-avatar">👤</div>
+                            <div class="vs-player-name">Player 2</div>
+                            <div class="vs-player-flag">🇺🇸</div>
+                            <div class="vs-player-stats">
+                                <span>🏆 1150</span>
+                                <span>W/L: 1.2</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="vs-subtitle">SISTEMAS DE COMBATE ATIVADOS</div>
+                    <div class="vs-loading-bar"><div class="vs-bar-fill"></div></div>
                 </div>`
         };
 
@@ -147,7 +202,7 @@ class MultiplayerGame {
         Object.entries(screens).forEach(([id, html]) => {
             const div = document.createElement('div');
             div.id = id;
-            div.className = id === 'login-screen' ? 'screen' : 'screen hidden';
+            div.className = id === 'splash-screen' ? 'screen' : 'screen hidden';
             div.innerHTML = html;
             document.body.appendChild(div);
         });
@@ -281,10 +336,14 @@ class MultiplayerGame {
             this.showRoomScreen();
         });
 
-        this.socket.on('player_joined', data => this.updatePlayersList(data.players));
+        this.socket.on('player_joined', data => {
+            this.currentPlayers = data.players;
+            this.updatePlayersList(data.players);
+        });
 
         this.socket.on('match_starting', data => {
             this.notify('Partida iniciando!', 'success');
+            this.showVSScreen();
         });
 
         this.socket.on('placement_phase_started', data => this.startPlacementPhase(data));
@@ -312,8 +371,17 @@ class MultiplayerGame {
 
     // ==================== SCREENS ====================
     switchScreen(id) {
-        document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
-        document.getElementById(id)?.classList.remove('hidden');
+        document.querySelectorAll('.screen').forEach(s => {
+            s.classList.add('hidden');
+            s.classList.remove('screen-enter');
+        });
+        const target = document.getElementById(id);
+        if (target) {
+            target.classList.remove('hidden');
+            // Trigger reflow for animation restart
+            void target.offsetWidth;
+            target.classList.add('screen-enter');
+        }
     }
 
     showLoginScreen() { this.switchScreen('login-screen'); }
@@ -324,6 +392,32 @@ class MultiplayerGame {
         const el = document.getElementById('username-display');
         if (el) el.innerText = `👤 ${this.user?.username || ''}`;
         if (this.engine3d) this.engine3d.stop();
+    }
+
+    showVSScreen() {
+        this.switchScreen('vs-screen');
+        // Populate VS Screen with current players
+        if (this.currentPlayers && this.currentPlayers.length >= 2) {
+            const p1 = this.currentPlayers[0];
+            const p2 = this.currentPlayers[1];
+            
+            // Set Player 1 (Left)
+            document.querySelector('#vs-player1 .vs-player-name').innerText = p1.id === this.user.id ? `${p1.username} (VOCÊ)` : p1.username;
+            
+            // Set Player 2 (Right)
+            document.querySelector('#vs-player2 .vs-player-name').innerText = p2.id === this.user.id ? `${p2.username} (VOCÊ)` : p2.username;
+        }
+
+        // Add dramatic entry sound if AudioManager is available
+        if (window.AudioManager) {
+            AudioManager.getInstance().play('shoot'); // Placeholder for dramatic sound
+        }
+
+        // The vs-screen CSS animations run automatically.
+        // Wait 4 seconds for the animation to finish, then proceed to placement implicitly 
+        // by waiting for the 'placement_phase_started' socket event which typically fires shortly after.
+        // If placement_phase_started already fired, we might need to queue it. 
+        // For simplicity, let's let the server trigger the next phase and we just ensure the screen is shown.
     }
 
     showGameScreen() {
@@ -448,6 +542,16 @@ class MultiplayerGame {
 
     // ==================== PLACEMENT PHASE ====================
     startPlacementPhase(data) {
+        // Delay placement screen if VS screen is showing
+        const vsScreen = document.getElementById('vs-screen');
+        if (vsScreen && !vsScreen.classList.contains('hidden')) {
+            setTimeout(() => this._initPlacementPhase(data), 3500); // Wait for VS animation
+        } else {
+            this._initPlacementPhase(data);
+        }
+    }
+
+    _initPlacementPhase(data) {
         this.switchScreen('placement-screen');
         this.placementBoard = this.createEmptyBoard();
         this.shipsToPlace = [
@@ -620,6 +724,7 @@ class MultiplayerGame {
         };
         this.isMyTurn = data.currentTurn === this.user.id;
         this.showGameScreen();
+        this.initFleetHUD();
         this.updateTurnIndicator();
         this.resetTurnTimer(20);
 
@@ -639,39 +744,64 @@ class MultiplayerGame {
     }
 
     createBoards() {
-        // Agora só criamos o Radar Tático (my-board)
-        const myDiv = document.getElementById('my-board');
-        if (!myDiv) return;
-        myDiv.innerHTML = '';
+        // Obsoleto, o radar tático foi substituído pela visualização 3D e o Fleet HUD.
+    }
 
-        const cols = [' ','A','B','C','D','E','F','G','H','I','J'];
+    initFleetHUD() {
+        const hud = document.getElementById('fleet-hud');
+        if (!hud) return;
 
-        const addHeaders = (container) => {
-            cols.forEach(c => {
-                const lbl = document.createElement('div');
-                lbl.className = 'board-label';
-                lbl.innerText = c;
-                container.appendChild(lbl);
-            });
-        };
+        // Limpa o hud deixando apenas o label
+        hud.innerHTML = '<div class="fleet-hud-label">MINHA FROTA</div>';
 
-        addHeaders(myDiv);
+        // Mapeamento dos navios do jogo
+        const ships = [
+            { id: 1, icon: '🚢', size: 5 }, // Porta-Aviões
+            { id: 2, icon: '🛳️', size: 4 }, // Encouraçado
+            { id: 3, icon: '🚤', size: 3 }, // Cruzador 1
+            { id: 4, icon: '🚤', size: 3 }, // Cruzador 2
+            { id: 5, icon: '⛵', size: 2 }  // Destroyer
+        ];
 
-        for (let i = 0; i < 10; i++) {
-            const lbl = document.createElement('div');
-            lbl.className = 'board-label';
-            lbl.innerText = i + 1;
-            myDiv.appendChild(lbl);
+        ships.forEach(ship => {
+            const shipDiv = document.createElement('div');
+            shipDiv.className = 'fleet-ship';
+            shipDiv.id = `fleet-ship-${ship.id}`;
+            
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'fleet-ship-icon';
+            iconDiv.innerText = ship.icon;
+            
+            const barDiv = document.createElement('div');
+            barDiv.className = 'fleet-ship-bar';
+            
+            for (let i = 0; i < ship.size; i++) {
+                const block = document.createElement('div');
+                block.className = 'bar-block';
+                barDiv.appendChild(block);
+            }
+            
+            shipDiv.appendChild(iconDiv);
+            shipDiv.appendChild(barDiv);
+            hud.appendChild(shipDiv);
+        });
+    }
 
-            for (let j = 0; j < 10; j++) {
-                const mc = document.createElement('div');
-                mc.className = 'board-cell';
-                mc.dataset.row = i;
-                mc.dataset.col = j;
-                if (this.gameState.myBoard?.[i]?.[j] && typeof this.gameState.myBoard[i][j] === 'object') {
-                    mc.classList.add('ship');
-                }
-                myDiv.appendChild(mc);
+    updateFleetHUD(shipId, damageAmount, isSunk) {
+        const shipDiv = document.getElementById(`fleet-ship-${shipId}`);
+        if (!shipDiv) return;
+
+        const blocks = shipDiv.querySelectorAll('.bar-block');
+        
+        if (isSunk) {
+            shipDiv.classList.add('sunk-ship');
+            blocks.forEach(block => block.className = 'bar-block sunk');
+        } else {
+            // Conta os blocos normais (não danificados) e converte para damage class da direita pra esquerda
+            let undamagedBlocks = Array.from(blocks).filter(b => !b.classList.contains('damaged'));
+            // Remove o primeiro "undamaged" para indicar hit
+            if (undamagedBlocks.length > 0) {
+                undamagedBlocks[undamagedBlocks.length - 1].classList.add('damaged');
             }
         }
     }
@@ -712,7 +842,12 @@ class MultiplayerGame {
                 this.showFeedback(msg, hit ? 'text-hit' : 'text-miss');
             }
         } else {
+            const cellData = this.gameState.myBoard[row][col];
             this.gameState.myBoard[row][col] = hit ? 'hit' : 'miss';
+            
+            if (hit && cellData && cellData.id) {
+                this.updateFleetHUD(cellData.id, 1, shipSunk);
+            }
             
             // Camera Shake e som de impacto se tomamos dano
             if (this.engine3d) {

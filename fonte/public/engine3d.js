@@ -206,6 +206,8 @@ class CoreEngine {
         
         // Terreno customizado (Substitui Water e City)
         this.setupTerrain();
+        // Mar revoltoso para o Menu
+        this.setupSea();
         // Plano invisível para colisões de clique onde o mar estaria
         this.setupRaycastPlane();
         
@@ -260,6 +262,23 @@ class CoreEngine {
         });
     }
 
+    setupSea() {
+        const geo = new THREE.PlaneGeometry(600, 600, 64, 64);
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0x051024,
+            roughness: 0.2,
+            metalness: 0.8,
+            flatShading: true,
+            side: THREE.DoubleSide
+        });
+        this.sea = new THREE.Mesh(geo, mat);
+        this.sea.rotation.x = -Math.PI / 2;
+        this.sea.position.y = -1;
+        this.sea.visible = false;
+        this.scene.add(this.sea);
+        this.seaGeometry = geo;
+    }
+
     setupRaycastPlane() {
         const gridTotal = GAME_CONFIG.gridSize * (window.GAME_CONFIG_BASE?.cellSize || 3);
         const geo = new THREE.PlaneGeometry(gridTotal, gridTotal);
@@ -312,13 +331,18 @@ class CoreEngine {
     }
 
     update(time) {
-        // Removido this.water.material.uniforms... pois agora a água é o modelo carregado
-        
-        // Se desejar atualizar a calibração do config.js visualmente em "tempo real" sem recarregar o jogo,
-        // (útil para desenvolvimento apenas), poderiamos atualizar aqui. 
-        // Mas a leitura será feita no carregamento.
-        
         this.renderer.render(this.scene, this.camera);
+        if (this.seaGeometry && this.sea.visible) {
+            const positionAttribute = this.seaGeometry.attributes.position;
+            const vertex = new THREE.Vector3();
+            for (let i = 0; i < positionAttribute.count; i++) {
+                vertex.fromBufferAttribute(positionAttribute, i);
+                vertex.z = Math.sin(vertex.x * 0.1 + time * 2) * 1.5 + Math.cos(vertex.y * 0.1 + time * 1.5) * 1.5;
+                positionAttribute.setZ(i, vertex.z);
+            }
+            positionAttribute.needsUpdate = true;
+            this.sea.geometry.computeVertexNormals();
+        }
     }
 }
 
@@ -1057,7 +1081,7 @@ class Engine3D {
         this.clearPreview();
         this.vfx.clearFires();
         
-        if (mode === 'ATTACK') {
+        if (mode === 'ATTACK' || mode === 'MENU') {
             this.drone.setWaiting(true, 'normal');
         } else {
             this.drone.setWaiting(false); // No drone during placement
@@ -1065,11 +1089,64 @@ class Engine3D {
         
         const canvas = document.getElementById('game-canvas');
         if (canvas) canvas.style.display = 'block';
+
+        if (mode === 'MENU') {
+            if (this.core.terrainModel) this.core.terrainModel.visible = false;
+            if (this.core.sea) this.core.sea.visible = true;
+            this.renderRandomMenuShips();
+            if (!this.menuFxInterval) {
+                this.menuFxInterval = setInterval(() => {
+                    if (this.mode === 'MENU') {
+                        // Flak explosions in the sky
+                        const pos = new THREE.Vector3(
+                            (Math.random() - 0.5) * 40,
+                            10 + Math.random() * 20,
+                            (Math.random() - 0.5) * 40
+                        );
+                        this.vfx.createFlakExplosion(pos, this.core.scene);
+                        // Occasional water hits
+                        if (Math.random() > 0.5) {
+                            const waterPos = new THREE.Vector3(
+                                (Math.random() - 0.5) * 40,
+                                0,
+                                (Math.random() - 0.5) * 40
+                            );
+                            this.vfx.createExplosion(waterPos);
+                        }
+                    }
+                }, 800);
+            }
+        } else {
+            if (this.core.terrainModel) this.core.terrainModel.visible = true;
+            if (this.core.sea) this.core.sea.visible = false;
+            if (this.menuFxInterval) {
+                clearInterval(this.menuFxInterval);
+                this.menuFxInterval = null;
+            }
+        }
+    }
+
+    renderRandomMenuShips() {
+        const dummyBoard = Array.from({length:10}, ()=>Array(10).fill(null));
+        // Porta-Aviões
+        dummyBoard[1][1] = {id:1, size:5, part:0}; dummyBoard[1][2] = {id:1, size:5, part:1}; dummyBoard[1][3] = {id:1, size:5, part:2}; dummyBoard[1][4] = {id:1, size:5, part:3}; dummyBoard[1][5] = {id:1, size:5, part:4};
+        // Encouraçado
+        dummyBoard[4][7] = {id:2, size:4, part:0}; dummyBoard[5][7] = {id:2, size:4, part:1}; dummyBoard[6][7] = {id:2, size:4, part:2}; dummyBoard[7][7] = {id:2, size:4, part:3};
+        // Cruzadores
+        dummyBoard[8][2] = {id:3, size:3, part:0}; dummyBoard[8][3] = {id:3, size:3, part:1}; dummyBoard[8][4] = {id:3, size:3, part:2};
+        dummyBoard[3][1] = {id:4, size:3, part:0}; dummyBoard[4][1] = {id:4, size:3, part:1}; dummyBoard[5][1] = {id:4, size:3, part:2};
+        // Destroyer
+        dummyBoard[8][8] = {id:5, size:2, part:0}; dummyBoard[9][8] = {id:5, size:2, part:1};
+        this.renderShips(dummyBoard);
     }
 
     stop() {
         this.isActive = false;
         this.drone.setWaiting(false);
+        if (this.menuFxInterval) {
+            clearInterval(this.menuFxInterval);
+            this.menuFxInterval = null;
+        }
         const canvas = document.getElementById('game-canvas');
         if (canvas) canvas.style.display = 'none';
     }
