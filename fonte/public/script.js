@@ -348,9 +348,11 @@ class MultiplayerGame {
         this.socket.on('placement_phase_started', data => this.startPlacementPhase(data));
         this.socket.on('game_started', data => this.startGame(data));
         this.socket.on('turn_change', data => {
-            this.isMyTurn = data.playerId === this.user.id;
-            this.updateTurnIndicator();
-            this.resetTurnTimer(data.timeLimit || 20);
+            if (this.isAnimating) {
+                this.pendingTurnChange = data;
+            } else {
+                this._applyTurnChange(data);
+            }
         });
         this.socket.on('action_result', data => this.handleActionResult(data));
         this.socket.on('match_ended', data => this.endGame(data));
@@ -734,9 +736,6 @@ class MultiplayerGame {
         this.isMyTurn = data.currentTurn === this.user.id;
         this.showGameScreen();
         this.initFleetHUD();
-        this.updateTurnIndicator();
-        this.resetTurnTimer(20);
-
         // Start game in ATTACK mode
         if (this.engine3d) {
             this.engine3d.onCellClick = (col, row) => this.attackCell(row, col);
@@ -750,6 +749,9 @@ class MultiplayerGame {
             );
         }
         this.engine3d.start('ATTACK');
+
+        this.updateTurnIndicator();
+        this.resetTurnTimer(20);
     }
 
     createEmptyBoard() {
@@ -820,9 +822,13 @@ class MultiplayerGame {
     }
 
     attackCell(row, col) {
-        if (!this.isMyTurn) return this.notify('Aguarde sua vez!', 'warning');
+        if (!this.isMyTurn || this.attackPending) return this.notify('Aguarde sua vez!', 'warning');
         if (!this.gameState) return;
         if (this.gameState.enemyBoard[row][col]) return this.notify('Já atacou aqui!', 'warning');
+
+        // Marca como pendente para impedir duplo-clique, mas NÃO muda o turno visualmente.
+        // O turno só muda quando o servidor enviar 'turn_change'.
+        this.attackPending = true;
 
         this.socket.emit('game_action', {
             roomCode: this.currentRoom,
@@ -830,14 +836,17 @@ class MultiplayerGame {
             cell: [row, col],
             multiplier: 1
         });
-
-        this.isMyTurn = false;
-        this.updateTurnIndicator();
     }
 
     async handleActionResult(data) {
+        this.isAnimating = true;
+        
         const { hit, shipSunk, cell, score, gameEnded, attackerId } = data;
-        if (!cell) return;
+        if (!cell) {
+            this.isAnimating = false;
+            return;
+        }
+        
         const [row, col] = cell;
         const isMyAttack = attackerId === this.user.id;
 
@@ -847,7 +856,8 @@ class MultiplayerGame {
             // Animacao do Drone
             if (this.engine3d) {
                 // A UI aguarda o fim da animação
-                await this.engine3d.processAttack(col, row, hit, shipSunk, shipSunk);
+                const cinMode = shipSunk ? 'attack' : 'normal';
+                await this.engine3d.processAttack(col, row, hit, shipSunk, cinMode);
             }
 
             if (!gameEnded) {
@@ -856,25 +866,26 @@ class MultiplayerGame {
             }
         } else {
             const cellData = this.gameState.myBoard[row][col];
-            this.gameState.myBoard[row][col] = hit ? 'hit' : 'miss';
+            
+            // Preserve ship object, just add status
+            if (cellData && typeof cellData === 'object') {
+                cellData.hit = true;
+            } else {
+                this.gameState.myBoard[row][col] = 'miss';
+            }
             
             if (hit && cellData && cellData.id) {
                 this.updateFleetHUD(cellData.id, 1, shipSunk);
             }
             
-            // Camera Shake e som de impacto se tomamos dano
             if (this.engine3d) {
+                // Toca a animação do drone inimigo atacando o nosso tabuleiro!
+                const cinMode = shipSunk ? 'defense' : 'normal';
+                await this.engine3d.processAttack(col, row, hit, shipSunk, cinMode);
+                
                 if (hit) {
-                    if (shipSunk) {
-                        // NOVO: Cena do marinheiro defendendo o navio
-                        await this.engine3d.processDefenseSinking(col, row);
-                    } else {
-                        AudioManager.getInstance().play('hit');
-                        this.engine3d.vfx.shake(1.5, 0.5);
-                    }
                     this.showFeedback("INIMIGO ACERTOU SUA FROTA!", "text-miss");
                 } else {
-                    AudioManager.getInstance().play('miss');
                     this.showFeedback("INIMIGO ERROU!", "text-hit");
                 }
             }
@@ -883,6 +894,19 @@ class MultiplayerGame {
         if (data.timeout && !gameEnded) {
             this.notify('Tempo esgotado! Turno passado.', 'warning');
         }
+        
+        this.isAnimating = false;
+        if (this.pendingTurnChange) {
+            this._applyTurnChange(this.pendingTurnChange);
+            this.pendingTurnChange = null;
+        }
+    }
+
+    _applyTurnChange(data) {
+        this.attackPending = false;
+        this.isMyTurn = data.playerId === this.user.id;
+        this.updateTurnIndicator();
+        this.resetTurnTimer(data.timeLimit || 20);
     }
 
     showFeedback(txt, cls = '') {
@@ -902,6 +926,18 @@ class MultiplayerGame {
         } else {
             el.innerHTML = '⏳ TURNO DO ADVERSÁRIO';
             el.className = 'turn-indicator opponent-turn';
+        }
+        this.renderCurrentBoard();
+    }
+
+    renderCurrentBoard() {
+        if (!this.engine3d || !this.gameState) return;
+        if (this.isMyTurn) {
+            // Meu turno: estou atacando, vejo a água inimiga (navios ocultos)
+            this.engine3d.renderGameState(this.gameState.enemyBoard, false);
+        } else {
+            // Turno inimigo: ele ataca, vejo minha própria frota
+            this.engine3d.renderGameState(this.gameState.myBoard, true);
         }
     }
 

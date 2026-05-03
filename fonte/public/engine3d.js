@@ -947,16 +947,37 @@ class DroneController {
                         // A rotação extra (Math.PI) foi removida, o modelo deve usar sua "frente" original
                     }
 
-                    // 1. Disparos da Arma Principal (O Jogador) a cada 1.5 segundos
+                    // 1. Disparos da Arma Principal (O Jogador) a cada 0.15 segundos
                     const elapsed = t * 8.0; // Duração total é 8.0
-                    if (elapsed - lastShotTime >= 1.5) {
+                    if (elapsed - lastShotTime >= 0.15) {
                         lastShotTime = elapsed;
-                        AudioManager.getInstance().play('shoot');
                         
-                        // Ponto do bico da arma para o flash
+                        // Som de tiro contínuo mas leve
+                        if (Math.random() > 0.5) AudioManager.getInstance().play('shoot');
+                        
+                        // Ponto do bico da arma para o flash e origem do tiro
                         const barrelPos = this.camera.position.clone().add(new THREE.Vector3(0, -0.35, -2.5).applyQuaternion(this.camera.quaternion));
                         
-                        // Projéteis removidos a pedido do usuário. Apenas Muzzle Flash e Som permanecem.
+                        // Projétil Traçante da Arma Principal
+                        const tracerGeo = new THREE.CylinderGeometry(0.08, 0.08, 6, 8);
+                        const tracerMat = new THREE.MeshBasicMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.9 });
+                        const tracer = new THREE.Mesh(tracerGeo, tracerMat);
+                        tracer.position.copy(barrelPos);
+                        
+                        // Dispersão leve na mira para não parecer perfeito demais
+                        const aimPos = pos.clone().add(new THREE.Vector3((Math.random()-0.5)*5, (Math.random()-0.5)*5, (Math.random()-0.5)*5));
+                        tracer.lookAt(aimPos);
+                        tracer.rotateX(Math.PI / 2);
+                        tracerGroup.add(tracer);
+
+                        gsap.to(tracer.position, {
+                            x: aimPos.x, y: aimPos.y, z: aimPos.z,
+                            duration: 0.1, // muito rápido!
+                            onComplete: () => {
+                                tracerGroup.remove(tracer);
+                                tracerGeo.dispose(); tracerMat.dispose();
+                            }
+                        });
 
                         // Muzzle Flash
                         const flash = new THREE.PointLight(0x00f2ff, 4, 5);
@@ -1276,7 +1297,7 @@ class Engine3D {
         this.clearShips();
         for (let r = 0; r < board.length; r++) {
             for (let c = 0; c < board[r].length; c++) {
-                if (board[r][c]) {
+                if (board[r][c] && typeof board[r][c] === 'object') {
                     const wPos = this.grid.getWorldPosition(c, r);
                     const geo = new THREE.BoxGeometry(2.5, 0.5, 2.5);
                     const mat = new THREE.MeshStandardMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.6, metalness: 0.5, roughness: 0.2 });
@@ -1285,6 +1306,43 @@ class Engine3D {
                     mesh.position.y = 0.25;
                     this.core.scene.add(mesh);
                     this.shipMeshes.push(mesh);
+                }
+            }
+        }
+    }
+
+    renderGameState(board, showShips) {
+        this.clearShips();
+        this.clearMarkers();
+        this.attackedCells.clear();
+        this.vfx.clearFires(); // Clear past fires, or keep them if we want? Let's clear and re-add.
+
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                const cell = board[r][c];
+                const wPos = this.grid.getWorldPosition(c, r);
+
+                if (cell) {
+                    // Check if it's a ship
+                    if (showShips && typeof cell === 'object') {
+                        const geo = new THREE.BoxGeometry(2.5, 0.5, 2.5);
+                        const mat = new THREE.MeshStandardMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.6, metalness: 0.5, roughness: 0.2 });
+                        const mesh = new THREE.Mesh(geo, mat);
+                        mesh.position.copy(wPos);
+                        mesh.position.y = 0.25;
+                        this.core.scene.add(mesh);
+                        this.shipMeshes.push(mesh);
+                    }
+
+                    // Check if it's hit or miss
+                    if (cell === 'hit' || cell.hit === true) {
+                        this.attackedCells.add(`${c},${r}`);
+                        this.createMarker(wPos, true);
+                        this.vfx.createPersistentFire(wPos);
+                    } else if (cell === 'miss' || cell.miss === true) {
+                        this.attackedCells.add(`${c},${r}`);
+                        this.createMarker(wPos, false);
+                    }
                 }
             }
         }
@@ -1313,12 +1371,14 @@ class Engine3D {
         }
     }
 
-    async processAttack(c, r, hit, sunk, isCinematic) {
+    async processAttack(c, r, hit, sunk, cinematicMode = 'normal') {
         this.attackedCells.add(`${c},${r}`);
         const worldPos = this.grid.getWorldPosition(c, r);
 
-        if (isCinematic) {
+        if (cinematicMode === 'attack') {
             await this.drone.deployCinematic(worldPos);
+        } else if (cinematicMode === 'defense') {
+            await this.drone.deployDefenseCinematic(worldPos);
         } else {
             await this.drone.deploy(worldPos);
         }
@@ -1334,12 +1394,6 @@ class Engine3D {
             AudioManager.getInstance().play('miss');
         }
 
-        this.drone.setWaiting(true);
-    }
-
-    async processDefenseSinking(c, r) {
-        const worldPos = this.grid.getWorldPosition(c, r);
-        await this.drone.deployDefenseCinematic(worldPos);
         this.drone.setWaiting(true);
     }
 
