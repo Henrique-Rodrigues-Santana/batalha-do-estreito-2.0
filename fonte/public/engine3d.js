@@ -179,8 +179,9 @@ class VFXManager {
 class CoreEngine {
     constructor() {
         this.scene = new THREE.Scene();
-        // Pôr do Sol Sem Neblina para máxima nitidez ao longe
-        this.scene.fog = new THREE.FogExp2(0xffaa55, 0.0005); // Quase zero
+        // Default Sunset (Gameplay)
+        this.scene.background = new THREE.Color(0xffaa55);
+        this.scene.fog = new THREE.FogExp2(0xffaa55, 0.0005);
 
         const aspect = window.innerWidth / window.innerHeight;
         this.camera = new THREE.PerspectiveCamera(aspect < 1 ? 60 : 45, aspect, 0.1, 1000);
@@ -218,20 +219,20 @@ class CoreEngine {
     }
 
     setupLighting() {
-        const ambient = new THREE.AmbientLight(0xffeedd, 1.0); // Ambiente muito mais claro (Pôr do Sol)
-        this.scene.add(ambient);
-        this.sunLight = new THREE.DirectionalLight(0xffa040, 3.5); // Sol laranja vibrante
-        this.sunLight.position.set(50, 15, -150); // Sol no fundo do horizonte
+        this.ambient = new THREE.AmbientLight(0xffeedd, 1.0); 
+        this.scene.add(this.ambient);
+        this.sunLight = new THREE.DirectionalLight(0xffa040, 3.5); 
+        this.sunLight.position.set(50, 15, -150); 
         this.sunLight.castShadow = true;
         this.scene.add(this.sunLight);
     }
 
     setupSky() {
         const skyGeo = new THREE.SphereGeometry(400, 32, 32);
-        const skyMat = new THREE.ShaderMaterial({
+        this.skyMat = new THREE.ShaderMaterial({
             uniforms: {
-                topColor: { value: new THREE.Color(0x2a5298) }, // Azul claro do entardecer no topo
-                bottomColor: { value: new THREE.Color(0xff7722) }, // Laranja forte do Por do sol perto do mar
+                topColor: { value: new THREE.Color(0x2a5298) }, 
+                bottomColor: { value: new THREE.Color(0xff7722) }, 
                 offset: { value: 20 },
                 exponent: { value: 0.5 }
             },
@@ -239,39 +240,38 @@ class CoreEngine {
             fragmentShader: `uniform vec3 topColor; uniform vec3 bottomColor; uniform float offset; uniform float exponent; varying vec3 vWorldPosition; void main() { float h = normalize(vWorldPosition + offset).y; gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0); }`,
             side: THREE.BackSide
         });
-        this.scene.add(new THREE.Mesh(skyGeo, skyMat));
+        this.sky = new THREE.Mesh(skyGeo, this.skyMat);
+        this.scene.add(this.sky);
     }
 
     setupTerrain() {
         const loader = new THREE.GLTFLoader();
         loader.load('assets/terreno/desert_city.glb', (gltf) => {
             this.terrainModel = gltf.scene;
-            
-            // Aplicar calibragem em tempo real vinda do config.js
             const ts = window.GAME_CONFIG_BASE.terrainSettings;
             if (ts) {
                 this.terrainModel.position.set(ts.x, ts.y, ts.z);
                 this.terrainModel.scale.set(ts.scale, ts.scale, ts.scale);
                 if (ts.rotationY !== undefined) this.terrainModel.rotation.y = ts.rotationY;
             }
-
             this.scene.add(this.terrainModel);
-            console.log("Cenário Customizado (Desert City) carregado com sucesso!");
-        }, undefined, (error) => {
-            console.error("Erro ao carregar o cenário Desert City:", error);
+            // Inicia invisível se já estivermos no MENU
+            if (window.gameEngine && window.gameEngine.mode === 'MENU') {
+                this.terrainModel.visible = false;
+            }
         });
     }
 
     setupSea() {
-        const geo = new THREE.PlaneGeometry(600, 600, 64, 64);
-        const mat = new THREE.MeshStandardMaterial({
-            color: 0x051024,
+        const geo = new THREE.PlaneGeometry(800, 800, 64, 64);
+        this.seaMat = new THREE.MeshStandardMaterial({
+            color: 0x051024, 
             roughness: 0.2,
             metalness: 0.8,
             flatShading: true,
-            side: THREE.DoubleSide
+            side: THREE.FrontSide 
         });
-        this.sea = new THREE.Mesh(geo, mat);
+        this.sea = new THREE.Mesh(geo, this.seaMat);
         this.sea.rotation.x = -Math.PI / 2;
         this.sea.position.y = -1;
         this.sea.visible = false;
@@ -290,18 +290,18 @@ class CoreEngine {
     }
 
     setupClouds() {
-        const cloudGeo = new THREE.PlaneGeometry(250, 250); // Nuvens maiores para preencher o céu brilhante
-        const cloudMat = new THREE.MeshBasicMaterial({
-            color: 0xffaa66, // Cor de poente nas nuvens
+        const cloudGeo = new THREE.PlaneGeometry(250, 250); 
+        this.cloudMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff, 
             transparent: true, 
-            opacity: 0.2, // Nuvens mais translúcidas para não poluir
+            opacity: 0.3, 
             side: THREE.DoubleSide,
             depthWrite: false
         });
 
         this.clouds = new THREE.Group();
         for(let i=0; i<8; i++) {
-            const cloud = new THREE.Mesh(cloudGeo, cloudMat);
+            const cloud = new THREE.Mesh(cloudGeo, this.cloudMat);
             cloud.rotation.x = -Math.PI / 2;
             cloud.position.set(
                 (Math.random() - 0.5) * 100,
@@ -1091,9 +1091,38 @@ class Engine3D {
         if (canvas) canvas.style.display = 'block';
 
         if (mode === 'MENU') {
+            // Tropical Green Environment (Menu)
+            this.core.scene.background = new THREE.Color(0xd5f5e3);
+            this.core.scene.fog.color = new THREE.Color(0xd5f5e3);
+            this.core.ambient.color = new THREE.Color(0xf7fcf0);
+            this.core.ambient.intensity = 1.2;
+            this.core.sunLight.color = new THREE.Color(0xffffff);
+            this.core.sunLight.intensity = 2.5;
+            this.core.sunLight.position.set(50, 40, -100);
+            
+            if (this.core.skyMat) {
+                this.core.skyMat.uniforms.topColor.value.set(0xa9dfbf);
+                this.core.skyMat.uniforms.bottomColor.value.set(0xd5f5e3);
+            }
+            if (this.core.seaMat) {
+                this.core.seaMat.color.set(0x2ecc71);
+                this.core.seaMat.roughness = 0.3;
+                this.core.seaMat.metalness = 0.4;
+            }
+            if (this.core.cloudMat) {
+                this.core.cloudMat.color.set(0xffffff);
+            }
+
             if (this.core.terrainModel) this.core.terrainModel.visible = false;
             if (this.core.sea) this.core.sea.visible = true;
-            this.renderRandomMenuShips();
+            if (this.grid && this.grid.group) this.grid.group.visible = false;
+            
+            if (this.drone && this.drone.targetModel) {
+                this.drone.targetModel.visible = true;
+                this.drone.targetModel.position.set(0, -0.5, 0);
+                this.drone.targetModel.rotation.set(0, 0, 0);
+            }
+
             if (!this.menuFxInterval) {
                 this.menuFxInterval = setInterval(() => {
                     if (this.mode === 'MENU') {
@@ -1117,8 +1146,37 @@ class Engine3D {
                 }, 800);
             }
         } else {
+            // Sunset Environment (Gameplay)
+            this.core.scene.background = new THREE.Color(0xffaa55);
+            this.core.scene.fog.color = new THREE.Color(0xffaa55);
+            this.core.ambient.color = new THREE.Color(0xffeedd);
+            this.core.ambient.intensity = 1.0;
+            this.core.sunLight.color = new THREE.Color(0xffa040);
+            this.core.sunLight.intensity = 3.5;
+            this.core.sunLight.position.set(50, 15, -150);
+
+            if (this.core.skyMat) {
+                this.core.skyMat.uniforms.topColor.value.set(0x2a5298);
+                this.core.skyMat.uniforms.bottomColor.value.set(0xff7722);
+            }
+            if (this.core.seaMat) {
+                this.core.seaMat.color.set(0x051024);
+                this.core.seaMat.roughness = 0.2;
+                this.core.seaMat.metalness = 0.8;
+            }
+            if (this.core.cloudMat) {
+                this.core.cloudMat.color.set(0xffaa66);
+            }
+
             if (this.core.terrainModel) this.core.terrainModel.visible = true;
             if (this.core.sea) this.core.sea.visible = false;
+            if (this.grid && this.grid.group) this.grid.group.visible = true;
+            
+            if (this.drone && this.drone.targetModel) {
+                this.drone.targetModel.visible = false;
+                this.drone.targetModel.rotation.set(0, 0, 0);
+            }
+
             if (this.menuFxInterval) {
                 clearInterval(this.menuFxInterval);
                 this.menuFxInterval = null;
@@ -1309,6 +1367,15 @@ class Engine3D {
             this.core.update(now);
             this.drone.update(now, delta);
             this.core.sunLight.intensity = 2.0 + Math.sin(now) * 0.1;
+            
+            if (this.mode === 'MENU' && this.drone && this.drone.targetModel) {
+                if (!this.drone.targetModel.visible) {
+                    this.drone.targetModel.visible = true;
+                }
+                this.drone.targetModel.position.y = Math.sin(now * 2) * 0.5;
+                this.drone.targetModel.rotation.x = Math.sin(now) * 0.05;
+                this.drone.targetModel.rotation.z = Math.cos(now * 0.8) * 0.05;
+            }
         }
     }
 }

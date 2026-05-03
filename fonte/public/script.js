@@ -56,7 +56,6 @@ class MultiplayerGame {
             `,
             'login-screen': `
                 <div class="auth-container">
-                    <h2>⚓ BATALHA DO ESTREITO</h2>
                     <div class="auth-tabs">
                         <button class="tab-btn active" data-tab="login">LOGIN</button>
                         <button class="tab-btn" data-tab="register">REGISTRO</button>
@@ -301,7 +300,7 @@ class MultiplayerGame {
     logout() {
         localStorage.removeItem('game_token');
         localStorage.removeItem('game_user');
-        if (this.engine3d) this.engine3d.stop();
+        if (this.engine3d) this.engine3d.start('MENU');
         this.socket?.disconnect();
         this.socket = null;
         this.token = null;
@@ -384,14 +383,18 @@ class MultiplayerGame {
         }
     }
 
-    showLoginScreen() { this.switchScreen('login-screen'); }
+    showLoginScreen() {
+        document.body.classList.remove('game-active');
+        this.switchScreen('login-screen'); 
+    }
     showRoomScreen() { this.switchScreen('room-screen'); }
 
     showMainMenu() {
+        document.body.classList.remove('game-active');
         this.switchScreen('menu-screen');
         const el = document.getElementById('username-display');
         if (el) el.innerText = `👤 ${this.user?.username || ''}`;
-        if (this.engine3d) this.engine3d.stop();
+        if (this.engine3d) this.engine3d.start('MENU');
     }
 
     showVSScreen() {
@@ -552,6 +555,7 @@ class MultiplayerGame {
     }
 
     _initPlacementPhase(data) {
+        document.body.classList.add('game-active');
         this.switchScreen('placement-screen');
         this.placementBoard = this.createEmptyBoard();
         this.shipsToPlace = [
@@ -580,7 +584,11 @@ class MultiplayerGame {
             this.sendPlacedShips();
         };
 
-        if (!this.engine3d) {
+        if (this.engine3d) {
+            this.engine3d.onCellClick = (col, row) => this.attackCell(row, col);
+            this.engine3d.onPlacementClick = (col, row) => this.placeShipAt(row, col);
+            this.engine3d.onHover = (col, row) => this.previewShip(row, col);
+        } else {
             this.engine3d = new Engine3D(
                 (col, row) => this.attackCell(row, col),
                 (col, row) => this.placeShipAt(row, col),
@@ -715,6 +723,7 @@ class MultiplayerGame {
 
     // ==================== GAME ====================
     startGame(data) {
+        document.body.classList.add('game-active');
         if (this.placementTimerInterval) clearInterval(this.placementTimerInterval);
         this.gameState = {
             myBoard: data.myShips,
@@ -729,7 +738,11 @@ class MultiplayerGame {
         this.resetTurnTimer(20);
 
         // Start game in ATTACK mode
-        if (!this.engine3d) {
+        if (this.engine3d) {
+            this.engine3d.onCellClick = (col, row) => this.attackCell(row, col);
+            this.engine3d.onPlacementClick = (col, row) => this.placeShipAt(row, col);
+            this.engine3d.onHover = (col, row) => this.previewShip(row, col);
+        } else {
             this.engine3d = new Engine3D(
                 (col, row) => this.attackCell(row, col),
                 (col, row) => this.placeShipAt(row, col),

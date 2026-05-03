@@ -25,8 +25,7 @@
 
     <!-- Header -->
     <header id="game-header">
-        <h1 class="logo-main">BATALHA DO <span>ESTREITO</span></h1>
-        <p class="logo-sub">OPERAÇÃO MULTIPLAYER</p>
+        <img src="assets/sem fundo.png" alt="Logo Batalha do Estreito" class="logo-global">
     </header>
 
     <!-- App Container -->
@@ -54,7 +53,10 @@
                 const loading = document.getElementById('loading');
                 if (loading) {
                     loading.style.opacity = '0';
-                    setTimeout(() => loading.style.display = 'none', 500);
+                    setTimeout(() => {
+                        loading.style.display = 'none';
+                        document.body.classList.add('game-ready');
+                    }, 500);
                 }
             }, 800);
         });
