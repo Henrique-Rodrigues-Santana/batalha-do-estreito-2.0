@@ -14,26 +14,59 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
-  pingTimeout: 30000,
-  pingInterval: 10000
+// ============== HANDLERS GLOBAIS DE ERRO (evita crash do processo) ==============
+process.on('uncaughtException', (err) => {
+  console.error('💥 [FATAL] uncaughtException — processo não encerrado:', err.stack || err);
+  // Não finalizar: PM2 reinicia se necessário
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 [WARN] unhandledRejection em:', promise, '\nMotivo:', reason);
 });
 
 // ============== CONFIGURAÇÃO VIA .ENV ==============
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'batalha_estreito_fallback_secret_2026';
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// JWT: exige secret forte em produção
+if (!process.env.JWT_SECRET && NODE_ENV === 'production') {
+  console.error('❌ FATAL: JWT_SECRET não está definido no .env. Não é seguro iniciar em produção sem ele.');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_only_secret_nao_usar_em_producao';
+
 const HOUSE_COMMISSION = parseFloat(process.env.HOUSE_COMMISSION_PERCENT || '10') / 100;
 const DAILY_BONUS = parseInt(process.env.DAILY_BONUS_AMOUNT || '200');
 const INITIAL_COINS = parseInt(process.env.INITIAL_COINS || '1000');
 const SALT_ROUNDS = 10;
 
+// CORS: origens permitidas via .env (em produção definir ALLOWED_ORIGINS)
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : (NODE_ENV === 'production' ? [] : ['http://localhost:3000', 'http://127.0.0.1:3000']);
+
+if (NODE_ENV === 'production' && ALLOWED_ORIGINS.length === 0) {
+  console.warn('⚠️  ALLOWED_ORIGINS não definido. CORS estará bloqueando todas as origens externas.');
+}
+
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: NODE_ENV === 'production' ? ALLOWED_ORIGINS : true,
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  pingTimeout: 30000,
+  pingInterval: 10000
+});
+
 // ============== MIDDLEWARE ==============
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: NODE_ENV === 'production' ? ALLOWED_ORIGINS : true,
+  credentials: true
+}));
+app.use(express.json({ limit: '1mb' }));
 app.use(express.static('public'));
 
 // ---------- Rate Limiting Simples (sem dependência externa) ----------
@@ -78,6 +111,15 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const db = new sqlite3.Database(path.join(dbDir, 'games.db'));
+
+// PRAGMAs para maior robustez e performance (WAL mode evita corrupção em crashes)
+db.serialize(() => {
+  db.run('PRAGMA journal_mode=WAL;');
+  db.run('PRAGMA synchronous=NORMAL;');
+  db.run('PRAGMA cache_size=10000;');
+  db.run('PRAGMA foreign_keys=ON;');
+  console.log('⚙️  SQLite WAL mode e PRAGMAs configurados');
+});
 
 // Helper para promisify o SQLite
 function dbRun(sql, params = []) {
@@ -731,11 +773,28 @@ app.get('/api/stats/:userId', (req, res) => {
   });
 });
 
-// ------ Admin: Receita da Casa ------
-app.get('/api/admin/revenue', async (req, res) => {
+// ------ Middleware Admin ------
+function requireAdmin(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Token necessário' });
-  // Em produção, verificar se é admin
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const ADMIN_IDS = (process.env.ADMIN_USER_IDS || '')
+      .split(',')
+      .map(s => parseInt(s.trim()))
+      .filter(n => !isNaN(n));
+    if (ADMIN_IDS.length === 0 || !ADMIN_IDS.includes(decoded.id)) {
+      return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
+    }
+    req.adminUser = decoded;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token inválido' });
+  }
+}
+
+// ------ Admin: Receita da Casa ------
+app.get('/api/admin/revenue', requireAdmin, async (req, res) => {
   try {
     const total = await dbGet('SELECT SUM(commission) as total_revenue, COUNT(*) as total_matches FROM house_revenue');
     const recent = await dbAll('SELECT * FROM house_revenue ORDER BY timestamp DESC LIMIT 20');
@@ -1050,12 +1109,12 @@ io.on('connection', (socket) => {
     }
 
     const roomCode = generateRoomCode();
-    const AI_USER_ID = -1; // ID virtual da IA
+    const AI_USER_ID = -1; // ID virtual da IA em memória
 
     const matchResult = await dbRun(`
       INSERT INTO matches (match_code, player1_id, player2_id, bet_amount, match_type, ai_difficulty, status)
-      VALUES (?, ?, ?, ?, 'ai', ?, 'playing')
-    `, [roomCode, socket.userId, AI_USER_ID, betAmount, difficulty]);
+      VALUES (?, ?, NULL, ?, 'ai', ?, 'playing')
+    `, [roomCode, socket.userId, betAmount, difficulty]);
 
     socket.join(roomCode);
 
@@ -1235,8 +1294,17 @@ io.on('connection', (socket) => {
         const otherPlayer = room.players.find(id => id !== socket.userId);
 
         if (room.matchType === 'ai') {
-          // Partida vs IA: fim imediato com derrota
-          endMatch(roomCode, -1, room.betAmount);
+          // Partida vs IA: desconexão ≠ derrota → devolver aposta ao jogador
+          if (room.betAmount > 0) {
+            dbRun('UPDATE users SET coins = coins + ? WHERE id = ?',
+              [room.betAmount, socket.userId]
+            ).catch(err => console.error('Erro ao devolver aposta (AI disconnect):', err));
+            console.log(`💰 Aposta devolvida (desconexão vs IA): ${room.betAmount} moedas → userId ${socket.userId}`);
+          }
+          // Limpar timers da sala
+          if (room.turnTimeout) clearTimeout(room.turnTimeout);
+          if (room.placementTimeout) clearTimeout(room.placementTimeout);
+          activeGames.delete(roomCode);
           continue;
         }
 
@@ -1256,6 +1324,14 @@ io.on('connection', (socket) => {
 
     io.to('online').emit('online_count', io.sockets.adapter.rooms.get('online')?.size || 0);
     userSocketMap.delete(socket.userId);
+
+    // Limpar cache de username após 5 minutos (evitar leak de memória)
+    // Mantém por 5 min para permitir reconexão rápida sem nova query ao banco
+    setTimeout(() => {
+      if (!userSocketMap.has(socket.userId)) {
+        userCache.delete(socket.userId);
+      }
+    }, 5 * 60 * 1000);
   });
 });
 
@@ -1512,7 +1588,14 @@ function generateShipsBoard() {
     for (let i = 0; i < ship.count; i++) {
       let placed = false;
       const currentShipId = shipIdCounter++;
+      let maxAttempts = 2000; // Limite de tentativas — evita loop infinito no event loop
       while (!placed) {
+        if (--maxAttempts <= 0) {
+          // Recomeçar todo o board (raríssimo, mas protege o servidor)
+          console.warn('generateShipsBoard: excedeu tentativas — reiniciando board');
+          return generateShipsBoard();
+        }
+
         const horizontal = Math.random() > 0.5;
         const row = Math.floor(Math.random() * 10);
         const col = Math.floor(Math.random() * (horizontal ? 10 - ship.size + 1 : 10));
@@ -1673,7 +1756,8 @@ async function endMatch(roomCode, winnerId, prizePool) {
   if (winnerId !== AI_USER_ID) await updateRanking(winnerId, true);
   if (loserId !== AI_USER_ID && loserId) await updateRanking(loserId, false);
 
-  // Salvar partida no banco
+  // Salvar partida no banco (winner_id aceita NULL para vitórias da IA)
+  const dbWinnerId = (winnerId === AI_USER_ID || winnerId === -1) ? null : winnerId;
   await dbRun(`
     UPDATE matches 
     SET winner_id = ?, 
@@ -1683,7 +1767,7 @@ async function endMatch(roomCode, winnerId, prizePool) {
         status = 'finished',
         finished_at = CURRENT_TIMESTAMP
     WHERE match_code = ?
-  `, [winnerId, room.gameState?.scores[room.players[0]] || 0,
+  `, [dbWinnerId, room.gameState?.scores[room.players[0]] || 0,
     room.gameState?.scores[room.players[1]] || 0, commission, roomCode]);
 
   // Salvar histórico de apostas

@@ -34,7 +34,8 @@ const BASE_CONFIG = {
     cinematicSlowdown: 1.8,
 
     // MODO DEBUG (Mostra os navios no tabuleiro para teste)
-    debugShowShips: true,
+    // ⚠️ NUNCA deixar true em produção — expõe posição dos navios do adversário!
+    debugShowShips: false,
 
     // ==========================================
     // CALIBRAGEM DO CENÁRIO (MODIFICAR PARA ENCAIXAR)

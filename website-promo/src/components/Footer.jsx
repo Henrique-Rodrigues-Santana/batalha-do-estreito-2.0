@@ -1,5 +1,6 @@
 import React from 'react';
 import { Shield, Radio, Play, Smartphone, Globe, Lock } from 'lucide-react';
+import ServerStatus from './ServerStatus';
 
 export default function Footer({ onOpenAuth }) {
   return (
@@ -28,10 +29,7 @@ export default function Footer({ onOpenAuth }) {
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: '1.7', marginBottom: '20px' }}>
             O simulador definitivo de combate aeronaval com Drones Kamikaze Shahed-136, inteligência artificial e economia com comissão de 10% da casa.
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: 'var(--green)' }}>
-            <Radio size={14} />
-            <span>SERVIDORES TÁTICOS 100% OPERACIONAIS</span>
-          </div>
+          <ServerStatus />
         </div>
 
         {/* Coluna 2: Acesso Rápido */}
@@ -78,7 +76,7 @@ export default function Footer({ onOpenAuth }) {
             Aliste-se agora, receba 1.000 moedas de boas-vindas e comande sua frota.
           </p>
           <a
-            href="http://localhost:3000"
+            href={import.meta.env.VITE_GAME_URL || 'http://localhost:3000'}
             target="_blank"
             rel="noreferrer"
             className="btn-tactical btn-tactical-green"

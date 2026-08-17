@@ -55,25 +55,35 @@ nano .env
 Configure as variáveis para produção:
 ```env
 PORT=3000
-JWT_SECRET=SUA_CHAVE_SECRETA_FORTE_AQUI  # MUDE ISSO!
 NODE_ENV=production
+
+# OBRIGATÓRIO: gere com o comando abaixo
+# node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+JWT_SECRET=SUA_CHAVE_SECRETA_FORTE_AQUI
+
+# Seu domínio (sem barra no final)
+ALLOWED_ORIGINS=https://seudominio.com.br
+
+# ID(s) dos usuários administradores (separados por vírgula)
+ADMIN_USER_IDS=1
+
 HOUSE_COMMISSION_PERCENT=10
 DAILY_BONUS_AMOUNT=200
 INITIAL_COINS=1000
 ```
 
-> ⚠️ **IMPORTANTE**: Gere uma chave JWT forte:
-> ```bash
-> node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-> ```
-
 ---
 
-## 4. Iniciar com PM2
+## 4. Iniciar com PM2 (via ecosystem.config.js)
 
 ```bash
 cd /www/wwwroot/batalha-estreito
-pm2 start server.js --name batalha-estreito
+
+# Criar pasta de logs (necessária para o PM2)
+mkdir -p logs
+
+# Iniciar usando o arquivo de configuração
+pm2 start ecosystem.config.js --env production
 pm2 save
 pm2 startup
 ```
@@ -84,6 +94,7 @@ pm2 logs batalha-estreito    # Ver logs em tempo real
 pm2 restart batalha-estreito # Reiniciar
 pm2 stop batalha-estreito    # Parar
 pm2 monit                    # Monitor de recursos
+pm2 describe batalha-estreito # Detalhes da instância
 ```
 
 ---
@@ -178,13 +189,19 @@ Configure um cron no aaPanel para backup diário:
 
 ## Checklist Final
 
-- [ ] `.env` com JWT_SECRET forte
-- [ ] PM2 rodando e configurado para auto-restart
+- [ ] `.env` com `JWT_SECRET` forte (gerado com `crypto.randomBytes`)
+- [ ] `.env` com `ALLOWED_ORIGINS` apontando para seu domínio
+- [ ] `.env` com `ADMIN_USER_IDS` configurado
+- [ ] `NODE_ENV=production` no `.env`
+- [ ] Pasta `logs/` criada no servidor
+- [ ] PM2 iniciado com `ecosystem.config.js` e configurado para auto-restart
 - [ ] Nginx com SSL (HTTPS) — **obrigatório para PWA funcionar**
 - [ ] WebSocket funcionando (testar chat e matchmaking)
 - [ ] PWA instalável no celular
-- [ ] Backup do SQLite configurado
+- [ ] Backup do SQLite configurado (cron diário)
 - [ ] Domínio apontando para o IP do VPS
+- [ ] `debugShowShips: false` em `public/config.js` (**crítico!**)
+- [ ] `sw.js` com `CACHE_VERSION` atualizado para a data do deploy
 
 ---
 

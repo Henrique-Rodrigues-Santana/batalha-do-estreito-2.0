@@ -22,9 +22,9 @@ export default function ModelViewer3D({ modelType = 'drone' }) {
     camera.position.set(0, 1.2, 5.5);
     camera.lookAt(0, 0, 0);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.3;
     container.appendChild(renderer.domElement);
@@ -225,10 +225,21 @@ export default function ModelViewer3D({ modelType = 'drone' }) {
     });
     resizeObserver.observe(container);
 
+    // Controle de Visibilidade com IntersectionObserver
+    let isVisible = false;
+    const visibilityObserver = new IntersectionObserver(
+      ([entry]) => {
+        isVisible = entry.isIntersecting;
+      },
+      { threshold: 0.1 }
+    );
+    visibilityObserver.observe(container);
+
     // Loop
     let frameId;
     const animate = () => {
       frameId = requestAnimationFrame(animate);
+      if (!isVisible) return; // Pausa rotação e renderização fora de tela
       if (!isDragging) {
         modelPivot.rotation.y += 0.008;
       }
@@ -240,6 +251,7 @@ export default function ModelViewer3D({ modelType = 'drone' }) {
 
     return () => {
       cancelAnimationFrame(frameId);
+      visibilityObserver.disconnect();
       resizeObserver.disconnect();
       container.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mousemove', onMouseMove);

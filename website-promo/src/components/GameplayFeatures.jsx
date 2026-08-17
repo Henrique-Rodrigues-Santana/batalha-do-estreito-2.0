@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Video, DollarSign, Cpu, Smartphone, RefreshCw, Eye, ShieldCheck, Zap } from 'lucide-react';
 
 export default function GameplayFeatures() {
@@ -35,6 +35,29 @@ export default function GameplayFeatures() {
     }
   ];
 
+  const observerRef = useRef(null);
+
+  useEffect(() => {
+    observerRef.current = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('card-reveal');
+          observerRef.current.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1 });
+
+    const cards = document.querySelectorAll('.feature-card-anim');
+    cards.forEach((card, i) => {
+      card.style.animationDelay = `${i * 0.1}s`;
+      observerRef.current.observe(card);
+    });
+
+    return () => {
+      if (observerRef.current) observerRef.current.disconnect();
+    };
+  }, []);
+
   return (
     <section id="gameplay" style={{
       padding: '100px 24px',
@@ -63,7 +86,7 @@ export default function GameplayFeatures() {
         gap: '24px'
       }}>
         {features.map((item, idx) => (
-          <div key={idx} className="tactical-card">
+          <div key={idx} className="tactical-card feature-card-anim" style={{ opacity: 0 }}>
             <div style={{
               width: '48px',
               height: '48px',

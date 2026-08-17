@@ -432,8 +432,8 @@ class DroneController {
     loadModel() {
         this.loader.load('assets/3d-drone/iranian_shahed-136_military_drone.glb', (gltf) => {
             this.model = gltf.scene;
-            // Escala para visibilidade total (0.6 é o segredo)
-            this.model.scale.set(0.6, 0.6, 0.6);
+            // Escala imponente para visibilidade total
+            this.model.scale.set(0.95, 0.95, 0.95);
             this.model.rotation.y = Math.PI;
             this.drone.add(this.model);
             console.log("Drone 3D carregado com sucesso!");
@@ -1086,8 +1086,11 @@ class Engine3D {
         this.onHover = onHover;
         
         this.isActive = false;
-        this.mode = 'ATTACK'; // 'ATTACK' or 'PLACEMENT'
+        this.mode = 'ATTACK';
         this.attackedCells = new Set();
+        this.menuTracers = new THREE.Group();
+        this.core.scene.add(this.menuTracers);
+        this.lastMenuShotTime = 0;
 
         // Desktop events
         window.addEventListener('click', (e) => this.handleBoardClick(e));
@@ -1130,16 +1133,27 @@ class Engine3D {
     start(mode = 'ATTACK') {
         this.isActive = true;
         this.mode = mode;
-        this.attackedCells.clear();
+        if (!this.attackedCells) {
+            this.attackedCells = new Set();
+        } else {
+            this.attackedCells.clear();
+        }
+        if (!this.markers) this.markers = [];
+        if (!this.shipMeshes) this.shipMeshes = [];
+        if (!this.previewMeshes) this.previewMeshes = [];
         this.clearMarkers();
         this.clearShips();
         this.clearPreview();
-        this.vfx.clearFires();
+        if (this.vfx) this.vfx.clearFires();
         
         if (mode === 'ATTACK' || mode === 'MENU') {
-            this.drone.setWaiting(true, 'normal');
+            if (this.drone && typeof this.drone.setWaiting === 'function') {
+                this.drone.setWaiting(true, 'normal');
+            }
         } else {
-            this.drone.setWaiting(false); // No drone during placement
+            if (this.drone && typeof this.drone.setWaiting === 'function') {
+                this.drone.setWaiting(false);
+            }
         }
         
         const canvas = document.getElementById('game-canvas');
@@ -1177,29 +1191,6 @@ class Engine3D {
                 this.drone.targetModel.position.set(0, -0.5, 0);
                 this.drone.targetModel.rotation.set(0, 0, 0);
             }
-
-            if (!this.menuFxInterval) {
-                this.menuFxInterval = setInterval(() => {
-                    if (this.mode === 'MENU') {
-                        // Flak explosions in the sky
-                        const pos = new THREE.Vector3(
-                            (Math.random() - 0.5) * 40,
-                            10 + Math.random() * 20,
-                            (Math.random() - 0.5) * 40
-                        );
-                        this.vfx.createFlakExplosion(pos, this.core.scene);
-                        // Occasional water hits
-                        if (Math.random() > 0.5) {
-                            const waterPos = new THREE.Vector3(
-                                (Math.random() - 0.5) * 40,
-                                0,
-                                (Math.random() - 0.5) * 40
-                            );
-                            this.vfx.createExplosion(waterPos);
-                        }
-                    }
-                }, 800);
-            }
         } else {
             // Sunset Environment (Gameplay)
             this.core.scene.background = new THREE.Color(0xffaa55);
@@ -1231,11 +1222,6 @@ class Engine3D {
                 this.drone.targetModel.visible = false;
                 this.drone.targetModel.rotation.set(0, 0, 0);
             }
-
-            if (this.menuFxInterval) {
-                clearInterval(this.menuFxInterval);
-                this.menuFxInterval = null;
-            }
         }
     }
 
@@ -1248,18 +1234,16 @@ class Engine3D {
         // Cruzadores
         dummyBoard[8][2] = {id:3, size:3, part:0}; dummyBoard[8][3] = {id:3, size:3, part:1}; dummyBoard[8][4] = {id:3, size:3, part:2};
         dummyBoard[3][1] = {id:4, size:3, part:0}; dummyBoard[4][1] = {id:4, size:3, part:1}; dummyBoard[5][1] = {id:4, size:3, part:2};
-        // Destroyer
-        dummyBoard[8][8] = {id:5, size:2, part:0}; dummyBoard[9][8] = {id:5, size:2, part:1};
-        this.renderShips(dummyBoard);
+        // Submarinos
+        dummyBoard[9][8] = {id:5, size:2, part:0}; dummyBoard[9][9] = {id:5, size:2, part:1};
+        dummyBoard[0][9] = {id:6, size:2, part:0}; dummyBoard[1][9] = {id:6, size:2, part:1};
+        
+        this.renderShips(dummyBoard, true);
     }
 
     stop() {
         this.isActive = false;
         this.drone.setWaiting(false);
-        if (this.menuFxInterval) {
-            clearInterval(this.menuFxInterval);
-            this.menuFxInterval = null;
-        }
         const canvas = document.getElementById('game-canvas');
         if (canvas) canvas.style.display = 'none';
     }
@@ -1277,6 +1261,28 @@ class Engine3D {
     clearPreview() {
         this.previewMeshes.forEach(m => this.core.scene.remove(m));
         this.previewMeshes = [];
+    }
+
+    renderShips(board, showShips = true) {
+        this.clearShips();
+        this.clearMarkers();
+        this.attackedCells.clear();
+        this.vfx.clearFires(); // Clear past fires, or keep them if we want? Let's clear and re-add.
+
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                if (board[r][c] && typeof board[r][c] === 'object') {
+                    const wPos = this.grid.getWorldPosition(c, r);
+                    const geo = new THREE.BoxGeometry(2.5, 0.5, 2.5);
+                    const mat = new THREE.MeshStandardMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.6, metalness: 0.5, roughness: 0.2 });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.copy(wPos);
+                    mesh.position.y = 0.25;
+                    this.core.scene.add(mesh);
+                    this.shipMeshes.push(mesh);
+                }
+            }
+        }
     }
 
     getIntersectedCell(e) {
@@ -1323,24 +1329,6 @@ class Engine3D {
             if (this.drone.state !== 'WAITING') return;
             if (!this.attackedCells.has(`${coords.c},${coords.r}`) && this.onCellClick) {
                 this.onCellClick(coords.c, coords.r);
-            }
-        }
-    }
-
-    renderShips(board) {
-        this.clearShips();
-        for (let r = 0; r < board.length; r++) {
-            for (let c = 0; c < board[r].length; c++) {
-                if (board[r][c] && typeof board[r][c] === 'object') {
-                    const wPos = this.grid.getWorldPosition(c, r);
-                    const geo = new THREE.BoxGeometry(2.5, 0.5, 2.5);
-                    const mat = new THREE.MeshStandardMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.6, metalness: 0.5, roughness: 0.2 });
-                    const mesh = new THREE.Mesh(geo, mat);
-                    mesh.position.copy(wPos);
-                    mesh.position.y = 0.25;
-                    this.core.scene.add(mesh);
-                    this.shipMeshes.push(mesh);
-                }
             }
         }
     }
@@ -1445,6 +1433,29 @@ class Engine3D {
         this.markers.push(marker);
     }
 
+    createMenuTracer(from, to) {
+        const geo = new THREE.CylinderGeometry(0.08, 0.08, 4.0, 6);
+        geo.rotateX(Math.PI / 2);
+        const mat = new THREE.MeshBasicMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.95 });
+        const tracer = new THREE.Mesh(geo, mat);
+        tracer.position.copy(from);
+        tracer.lookAt(to);
+        this.menuTracers.add(tracer);
+
+        gsap.to(tracer.position, {
+            x: to.x,
+            y: to.y,
+            z: to.z,
+            duration: 0.32,
+            ease: "none",
+            onComplete: () => {
+                this.menuTracers.remove(tracer);
+                geo.dispose();
+                mat.dispose();
+            }
+        });
+    }
+
     animate() {
         const now = performance.now() * 0.001;
         const delta = this.lastTime ? now - this.lastTime : 0;
@@ -1456,17 +1467,56 @@ class Engine3D {
             this.drone.update(now, delta);
             this.core.sunLight.intensity = 2.0 + Math.sin(now) * 0.1;
             
-            if (this.mode === 'MENU' && this.drone && this.drone.targetModel) {
-                if (!this.drone.targetModel.visible) {
-                    this.drone.targetModel.visible = true;
+            // 🌊 CENA DO MENU: FÍSICA DE ONDAS NO NAVIO + DRONE EM ÓRBITA + ARTILHARIA NAVAL CONTÍNUA
+            if (this.mode === 'MENU') {
+                // 🚢 Navio T-22 flutuando e reagindo dinamicamente às ondas do mar
+                if (this.drone && this.drone.targetModel) {
+                    if (!this.drone.targetModel.visible) {
+                        this.drone.targetModel.visible = true;
+                    }
+                    const waveHeight = Math.sin(now * 1.6) * 0.55 + Math.cos(now * 1.2) * 0.3;
+                    this.drone.targetModel.position.set(0, -0.4 + waveHeight, 0);
+                    this.drone.targetModel.rotation.x = Math.cos(now * 1.4) * 0.08; // Pitch
+                    this.drone.targetModel.rotation.z = Math.sin(now * 1.1) * 0.11; // Roll
+                    this.drone.targetModel.rotation.y = Math.sin(now * 0.3) * 0.05; // Guinada suave
                 }
-                this.drone.targetModel.position.y = Math.sin(now * 2) * 0.5;
-                this.drone.targetModel.rotation.x = Math.sin(now) * 0.05;
-                this.drone.targetModel.rotation.z = Math.cos(now * 0.8) * 0.05;
+
+                // 🛸 Drone Shahed-136 ampliado sobrevoando em voltas aleatórias/sinuosas
+                if (this.drone && this.drone.drone) {
+                    if (!this.drone.drone.visible) {
+                        this.drone.drone.visible = true;
+                    }
+                    const rx = 18 + Math.sin(now * 0.35) * 6;
+                    const rz = 16 + Math.cos(now * 0.28) * 5;
+                    const dx = Math.sin(now * 0.65) * rx + Math.sin(now * 1.3) * 4;
+                    const dz = Math.cos(now * 0.55) * rz + Math.cos(now * 1.1) * 4;
+                    const dy = 12 + Math.sin(now * 0.8) * 3;
+                    this.drone.drone.position.set(dx, dy, dz);
+
+                    // Orientação tangente do vetor de voo
+                    const nextDx = Math.sin((now + 0.04) * 0.65) * rx + Math.sin((now + 0.04) * 1.3) * 4;
+                    const nextDz = Math.cos((now + 0.04) * 0.55) * rz + Math.cos((now + 0.04) * 1.1) * 4;
+                    const nextDy = 12 + Math.sin((now + 0.04) * 0.8) * 3;
+                    this.drone.drone.lookAt(nextDx, nextDy, nextDz);
+
+                    // Inclinação lateral realista das asas (Banking)
+                    this.drone.drone.rotation.z = -Math.sin(now * 0.65) * 0.45;
+                }
+
+                // 🔫 Navio disparando continuamente bateria antiaérea contra o drone
+                if (this.drone && this.drone.targetModel && this.drone.drone) {
+                    if (now - this.lastMenuShotTime > 0.14) {
+                        this.lastMenuShotTime = now;
+                        const shipDeckPos = this.drone.targetModel.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+                        const aimScatter = this.drone.drone.position.clone().add(
+                            new THREE.Vector3((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 5)
+                        );
+                        this.createMenuTracer(shipDeckPos, aimScatter);
+                    }
+                }
             }
         }
     }
 }
 
 window.Engine3D = Engine3D;
-

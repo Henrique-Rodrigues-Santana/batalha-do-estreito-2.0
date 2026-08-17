@@ -1,18 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import LoreSection from './components/LoreSection';
-import ArmamentShowcase from './components/ArmamentShowcase';
-import CinematicCombatDemo from './components/CinematicCombatDemo';
-import TacticalRadarDemo from './components/TacticalRadarDemo';
 import GameplayFeatures from './components/GameplayFeatures';
 import HallOfFame from './components/HallOfFame';
 import Footer from './components/Footer';
 import AuthModal from './components/AuthModal';
 import ProfileModal from './components/ProfileModal';
 import MarketplaceModal from './components/MarketplaceModal';
+import HowToPlay from './components/HowToPlay';
+import LiveEconomy from './components/LiveEconomy';
+import StickyMobileCTA from './components/StickyMobileCTA';
 import './styles/theme.css';
+
+const CinematicCombatDemo = React.lazy(() => import('./components/CinematicCombatDemo'));
+const ArmamentShowcase = React.lazy(() => import('./components/ArmamentShowcase'));
+const TacticalRadarDemo = React.lazy(() => import('./components/TacticalRadarDemo'));
 
 function MainApp() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -41,13 +45,25 @@ function MainApp() {
       <LoreSection />
 
       {/* Demonstração Cinemática de Impacto 3D (Atacante vs Defensor) */}
-      <CinematicCombatDemo />
+      <Suspense fallback={<div style={{ padding: '100px', textAlign: 'center', color: 'var(--cyan)' }}>Carregando simulação 3D...</div>}>
+        <CinematicCombatDemo />
+      </Suspense>
+
+      {/* Economia ao Vivo (NOVO) */}
+      <LiveEconomy />
 
       {/* Showroom 3D de Armas */}
-      <ArmamentShowcase />
+      <Suspense fallback={<div style={{ padding: '100px', textAlign: 'center', color: 'var(--cyan)' }}>Carregando arsenal 3D...</div>}>
+        <ArmamentShowcase />
+      </Suspense>
 
       {/* Simulador Interativo */}
-      <TacticalRadarDemo />
+      <Suspense fallback={<div style={{ padding: '100px', textAlign: 'center', color: 'var(--cyan)' }}>Carregando radar tático...</div>}>
+        <TacticalRadarDemo />
+      </Suspense>
+
+      {/* Como Jogar (NOVO) */}
+      <HowToPlay />
 
       {/* Mecânicas de Jogo */}
       <GameplayFeatures />
@@ -57,6 +73,9 @@ function MainApp() {
 
       {/* Rodapé */}
       <Footer onOpenAuth={handleOpenAuth} />
+
+      {/* CTA Mobile Fixo (NOVO) */}
+      <StickyMobileCTA onOpenAuth={handleOpenAuth} />
 
       {/* Modais Globais */}
       <AuthModal

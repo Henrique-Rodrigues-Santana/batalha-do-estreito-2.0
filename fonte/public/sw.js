@@ -3,7 +3,8 @@
 // Cache-First para assets pesados, Network-Only para API/Socket
 // ============================================================
 
-const CACHE_NAME = 'batalha-estreito-v1';
+const CACHE_VERSION = 'v20260817-fix3d-v2';
+const CACHE_NAME = `batalha-estreito-${CACHE_VERSION}`;
 
 // Assets para pré-cache (carregados na instalação)
 const PRECACHE_ASSETS = [

@@ -16,12 +16,25 @@ export default function HeroSection({ onOpenAuth }) {
       {/* Canvas 3D de Fundo */}
       <HeroScene3D />
 
-      {/* Grid Overlay e Gradiente */}
+      {/* Grid Overlay e Gradientes Cinematográficos de Transição Suave */}
       <div style={{
         position: 'absolute',
         inset: 0,
-        background: 'radial-gradient(circle at 50% 40%, transparent 20%, rgba(5, 11, 20, 0.8) 70%, var(--bg-dark) 100%)',
-        pointerEvents: 'none'
+        background: 'radial-gradient(circle at 50% 35%, transparent 25%, rgba(5, 11, 20, 0.4) 65%, var(--bg-dark) 100%)',
+        pointerEvents: 'none',
+        zIndex: 1
+      }} />
+
+      {/* Degradê na Base para Transição Suave com o Dossiê/Próxima Seção */}
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        width: '100%',
+        height: '240px',
+        background: 'linear-gradient(to bottom, transparent 0%, rgba(5, 11, 20, 0.6) 45%, var(--bg-dark) 100%)',
+        pointerEvents: 'none',
+        zIndex: 2
       }} />
 
       {/* Conteúdo Central */}
@@ -72,7 +85,7 @@ export default function HeroSection({ onOpenAuth }) {
         {/* Botões de Ação */}
         <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a
-            href="http://localhost:3000"
+            href={import.meta.env.VITE_GAME_URL || 'http://localhost:3000'}
             target="_blank"
             rel="noreferrer"
             className="btn-tactical btn-tactical-green"
@@ -90,36 +103,6 @@ export default function HeroSection({ onOpenAuth }) {
             <Shield size={18} />
             <span>ALISTAR COMANDANTE</span>
           </button>
-        </div>
-
-        {/* Telemetria Tática HUD */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-          gap: '12px',
-          marginTop: '60px',
-          padding: '16px 24px',
-          background: 'rgba(5, 11, 20, 0.75)',
-          border: '1px solid rgba(0, 242, 255, 0.2)',
-          borderRadius: '12px',
-          backdropFilter: 'blur(8px)'
-        }}>
-          <div>
-            <div className="font-tech" style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>ZONA DE OPERAÇÕES</div>
-            <div className="font-display" style={{ fontSize: '0.9rem', color: 'var(--cyan)', fontWeight: 700 }}>25.04° N / 56.40° E</div>
-          </div>
-          <div>
-            <div className="font-tech" style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>SISTEMA DE ARMAS</div>
-            <div className="font-display" style={{ fontSize: '0.9rem', color: 'var(--green)', fontWeight: 700 }}>UAV-136 KAMIKAZE</div>
-          </div>
-          <div>
-            <div className="font-tech" style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>ECONOMIA TÁTICA</div>
-            <div className="font-display" style={{ fontSize: '0.9rem', color: 'var(--gold)', fontWeight: 700 }}>10% RAKE DA CASA</div>
-          </div>
-          <div>
-            <div className="font-tech" style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>PLATAFORMA</div>
-            <div className="font-display" style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 700 }}>PWA WEB (SEM LOJA)</div>
-          </div>
         </div>
       </div>
     </section>

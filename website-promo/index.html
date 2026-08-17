@@ -3,16 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/assets/icons/icon-192.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#050b14" />
     
     <title>Batalha do Estreito 2.0 — Operação Estreito de Ferro | Portal Oficial</title>
     <meta name="description" content="Portal oficial da Batalha do Estreito 2.0. Conheça o arsenal de drones kamikaze, o lore da Crise de 2026, compre moedas e aliste-se para o combate naval tático!" />
     
+    <!-- Open Graph (preview no WhatsApp/Discord/etc) -->
+    <meta property="og:title" content="Batalha do Estreito 2.0 — Combate Naval 3D com Apostas" />
+    <meta property="og:description" content="Comande drones Shahed-136, aposte moedas em partidas PvP e suba no ranking global de almirantes." />
+    <meta property="og:image" content="https://seudominio.com.br/og-image.jpg" />
+    <meta property="og:url" content="https://seudominio.com.br" />
+    <meta property="og:type" content="website" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Batalha do Estreito 2.0" />
+    <meta name="twitter:image" content="https://seudominio.com.br/og-image.jpg" />
+
     <!-- Google Fonts: Orbitron, Rajdhani, Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- Preload crítico (Orbitron é o mais visível acima do fold) -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800;900&display=swap" as="style" onload="this.rel='stylesheet'">
+    <!-- Carregar Inter e Rajdhani de forma assíncrona -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    </noscript>
   </head>
   <body>
     <div id="root"></div>
