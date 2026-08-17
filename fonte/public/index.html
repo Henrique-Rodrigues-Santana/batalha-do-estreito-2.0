@@ -3,12 +3,28 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="description" content="Batalha Naval Multiplayer - Operação Kamikaze. Jogue batalha naval online com apostas em tempo real.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="description" content="Batalha Naval 3D Multiplayer com Drones Kamikaze. Jogue online, aposte moedas e destrua frotas inimigas em tempo real!">
     <meta name="theme-color" content="#050b14">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Batalha Estreito">
+
+    <!-- Open Graph / Social -->
+    <meta property="og:title" content="Batalha do Estreito 2.0 — Batalha Naval 3D com Drones">
+    <meta property="og:description" content="Jogue batalha naval online com drones kamikaze, apostas e ranking global. Desafie amigos ou a IA!">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="assets/sem fundo.png">
+
     <title>Batalha do Estreito — Operação Multiplayer</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="assets/icons/icon-512.png">
+
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -18,18 +34,48 @@
         <div class="loading-spinner"></div>
         <h2>INICIANDO OPERAÇÃO</h2>
         <p>Conectando ao servidor tático</p>
+        <div id="loading-progress" style="width:60%;max-width:280px;height:3px;background:rgba(255,255,255,0.15);border-radius:2px;margin-top:12px;overflow:hidden;">
+            <div id="loading-bar" style="width:0%;height:100%;background:var(--accent);transition:width 0.3s;"></div>
+        </div>
+        <p id="loading-percent" style="font-family:'Orbitron',sans-serif;font-size:0.7rem;color:var(--accent);margin-top:6px;">0%</p>
     </div>
 
     <!-- Connection Status -->
     <div id="connection-status" class="connection-status disconnected">🔴 OFFLINE</div>
 
-    <!-- Header -->
+    <!-- Header com Logo + Saldo -->
     <header id="game-header">
         <img src="assets/sem fundo.png" alt="Logo Batalha do Estreito" class="logo-global">
+        <div id="header-wallet" class="header-wallet hidden">
+            <span id="header-coins-display">💰 0</span>
+            <button id="header-buy-btn" class="wallet-add-btn">+</button>
+        </div>
     </header>
 
     <!-- App Container -->
     <div id="app"></div>
+
+    <!-- Banner de Instalação PWA -->
+    <div id="pwa-install-banner" class="pwa-install-banner hidden">
+        <div class="pwa-install-content">
+            <img src="assets/icons/icon-192.png" alt="App Icon" class="pwa-install-icon">
+            <div class="pwa-install-text">
+                <strong>Instalar Batalha do Estreito</strong>
+                <span>Jogue direto da tela inicial!</span>
+            </div>
+            <button id="pwa-install-btn" class="casino-btn pwa-btn">📲 INSTALAR</button>
+            <button id="pwa-dismiss-btn" class="pwa-dismiss">✕</button>
+        </div>
+    </div>
+
+    <!-- Overlay de Orientação de Tela (Mobile Retrato) -->
+    <div id="orientation-overlay" class="orientation-overlay hidden">
+        <div class="orientation-content">
+            <div class="rotate-icon">📱↻</div>
+            <h3>Gire o Celular</h3>
+            <p>Para uma melhor experiência tática, use o modo paisagem</p>
+        </div>
+    </div>
 
     <!-- Footer -->
     <div class="game-stats">
@@ -47,6 +93,28 @@
     <script src="script.js"></script>
 
     <script>
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => {
+                        console.log('✅ Service Worker registrado:', reg.scope);
+                        // Check for updates
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    if (window.showNotification) {
+                                        window.showNotification('Nova versão disponível! Recarregue a página.', 'info');
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch(err => console.warn('SW registro falhou:', err));
+            });
+        }
+
         // Loading fade out
         window.addEventListener('load', () => {
             setTimeout(() => {

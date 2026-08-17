@@ -1,4 +1,5 @@
-// Batalha do Estreito — Cliente Multiplayer
+// Batalha do Estreito 2.0 — Cliente Multiplayer Completo
+// Carteira, Marketplace, IA, Matchmaking, PWA, Reconexão
 class MultiplayerGame {
     constructor() {
         this.socket = null;
@@ -7,11 +8,15 @@ class MultiplayerGame {
         this.currentRoom = null;
         this.gameState = null;
         this.isMyTurn = false;
+        this.coins = 0;
+        this.matchType = 'pvp'; // 'pvp' or 'ai'
+        this.deferredPWAPrompt = null;
         this.init();
     }
 
     init() {
         this.setupUI();
+        this.setupPWAInstall();
         this.checkAuth();
     }
 
@@ -78,8 +83,12 @@ class MultiplayerGame {
                         <span id="username-display"></span>
                     </div>
                     <div class="menu-buttons">
+                        <button id="quick-match-btn" class="casino-btn" style="background:linear-gradient(135deg, var(--accent-dim), transparent);border-color:var(--accent);">⚡ JOGO RÁPIDO</button>
+                        <button id="ai-match-btn" class="casino-btn" style="background:linear-gradient(135deg, rgba(138,43,226,0.15), transparent);border-color:rgba(138,43,226,0.4);color:#b388ff;">🤖 JOGAR vs IA</button>
                         <button id="create-room-btn" class="casino-btn">🏠 CRIAR SALA</button>
                         <button id="find-match-btn" class="casino-btn">🔍 ENCONTRAR OPONENTE</button>
+                        <button id="marketplace-btn" class="casino-btn gold">🛒 MARKETPLACE</button>
+                        <button id="daily-bonus-btn" class="casino-btn" style="border-color:rgba(0,255,136,0.3);color:var(--success);">🎁 BÔNUS DIÁRIO</button>
                         <button id="ranking-btn" class="casino-btn">🏆 RANKING</button>
                         <button id="logout-btn" class="casino-btn danger">🚪 SAIR</button>
                     </div>
@@ -234,12 +243,25 @@ class MultiplayerGame {
         on('register-btn', () => this.register());
         on('create-room-btn', () => this.createRoom());
         on('find-match-btn', () => this.showLobby());
+        on('quick-match-btn', () => this.quickMatch());
+        on('ai-match-btn', () => this.showAIModal());
+        on('marketplace-btn', () => this.showMarketplace());
+        on('daily-bonus-btn', () => this.claimDailyBonus());
         on('lobby-back-btn', () => this.showMainMenu());
         on('lobby-refresh-btn', () => this.refreshLobby());
         on('ranking-btn', () => this.showRankingModal());
         on('logout-btn', () => this.logout());
         on('leave-room-btn', () => this.leaveRoom());
         on('forfeit-btn', () => this.forfeit());
+
+        // Header wallet buy button
+        on('header-buy-btn', () => this.showMarketplace());
+
+        // PWA install buttons
+        on('pwa-install-btn', () => this.installPWA());
+        on('pwa-dismiss-btn', () => {
+            document.getElementById('pwa-install-banner')?.classList.add('hidden');
+        });
 
         document.getElementById('chat-input')?.addEventListener('keypress', e => {
             if (e.key === 'Enter') this.sendChatMessage();
@@ -291,10 +313,12 @@ class MultiplayerGame {
     setAuth(data) {
         this.token = data.token;
         this.user = data.user;
+        this.coins = data.user.coins || 0;
         localStorage.setItem('game_token', this.token);
         localStorage.setItem('game_user', JSON.stringify(this.user));
         this.connectSocket();
         this.showMainMenu();
+        this.updateWalletDisplay();
     }
 
     logout() {
@@ -316,6 +340,19 @@ class MultiplayerGame {
         this.socket.on('connect', () => {
             this.setConnectionStatus(true);
             this.notify('Conectado!', 'success');
+            // Tentar reconectar a partida ativa
+            this.socket.emit('reconnect_match', (data) => {
+                if (data.success) {
+                    this.notify('Reconectado à partida!', 'success');
+                    this.currentRoom = data.roomCode;
+                    this.matchType = data.matchType || 'pvp';
+                    this.startGame({
+                        currentTurn: data.currentTurn,
+                        myShips: data.myBoard,
+                        betAmount: data.betAmount
+                    });
+                }
+            });
         });
 
         this.socket.on('disconnect', () => {
@@ -326,6 +363,12 @@ class MultiplayerGame {
         this.socket.on('online_count', count => {
             const el = document.getElementById('online-count');
             if (el) el.innerText = count;
+        });
+
+        // Atualização de saldo (em tempo real)
+        this.socket.on('balance_update', data => {
+            this.coins = data.coins;
+            this.updateWalletDisplay();
         });
 
         this.socket.on('room_created', data => {
@@ -345,6 +388,34 @@ class MultiplayerGame {
             this.showVSScreen();
         });
 
+        // Matchmaking
+        this.socket.on('quick_match_found', data => {
+            this.hideMatchmaking();
+            this.currentRoom = data.roomCode;
+            this.currentPlayers = data.players;
+            this.notify('Oponente encontrado!', 'success');
+            this.showVSScreen();
+        });
+
+        this.socket.on('quick_match_bot', data => {
+            this.hideMatchmaking();
+            this.notify(data.message, 'info');
+        });
+
+        this.socket.on('start_ai_match_auto', data => {
+            this.startAIMatch(data.difficulty, data.betAmount);
+        });
+
+        // Reconexão de outro jogador
+        this.socket.on('player_reconnected', data => {
+            this.notify(`${data.username} reconectou!`, 'success');
+        });
+
+        // Shutdown do servidor
+        this.socket.on('server_shutdown', data => {
+            this.notify(data.message, 'error');
+        });
+
         this.socket.on('placement_phase_started', data => this.startPlacementPhase(data));
         this.socket.on('game_started', data => this.startGame(data));
         this.socket.on('turn_change', data => {
@@ -358,7 +429,7 @@ class MultiplayerGame {
         this.socket.on('match_ended', data => this.endGame(data));
         this.socket.on('chat_message', data => this.addChatMessage(data));
         this.socket.on('player_disconnected', data => {
-            this.notify(`${data.username} desconectou. Aguardando...`, 'warning');
+            this.notify(`${data.username} desconectou. Aguardando reconexão (30s)...`, 'warning');
         });
         this.socket.on('action_invalid', data => this.notify(data.error, 'warning'));
     }
@@ -397,6 +468,9 @@ class MultiplayerGame {
         const el = document.getElementById('username-display');
         if (el) el.innerText = `👤 ${this.user?.username || ''}`;
         if (this.engine3d) this.engine3d.start('MENU');
+        this.updateWalletDisplay();
+        this.showHeaderWallet(true);
+        this.fetchBalance();
     }
 
     showVSScreen() {
@@ -684,7 +758,11 @@ class MultiplayerGame {
 
     sendPlacedShips() {
         if (this.placementTimerInterval) clearInterval(this.placementTimerInterval);
-        this.socket.emit('ships_placed', { roomCode: this.currentRoom, board: this.placementBoard });
+        if (this.matchType === 'ai') {
+            this.socket.emit('ai_ships_placed', { roomCode: this.currentRoom, board: this.placementBoard });
+        } else {
+            this.socket.emit('ships_placed', { roomCode: this.currentRoom, board: this.placementBoard });
+        }
     }
 
     generateRandomBoardClient() {
@@ -826,16 +904,21 @@ class MultiplayerGame {
         if (!this.gameState) return;
         if (this.gameState.enemyBoard[row][col]) return this.notify('Já atacou aqui!', 'warning');
 
-        // Marca como pendente para impedir duplo-clique, mas NÃO muda o turno visualmente.
-        // O turno só muda quando o servidor enviar 'turn_change'.
         this.attackPending = true;
 
-        this.socket.emit('game_action', {
-            roomCode: this.currentRoom,
-            action: 'attack',
-            cell: [row, col],
-            multiplier: 1
-        });
+        if (this.matchType === 'ai') {
+            this.socket.emit('ai_game_action', {
+                roomCode: this.currentRoom,
+                cell: [row, col]
+            });
+        } else {
+            this.socket.emit('game_action', {
+                roomCode: this.currentRoom,
+                action: 'attack',
+                cell: [row, col],
+                multiplier: 1
+            });
+        }
     }
 
     async handleActionResult(data) {
@@ -971,31 +1054,74 @@ class MultiplayerGame {
     async endGame(data) {
         if (this.gameState?.turnTimer) clearInterval(this.gameState.turnTimer);
         const isWinner = data.winnerId === this.user.id;
+        const betAmount = data.betAmount || 0;
+        const prize = data.prize || 0;
+        const commission = data.commission || 0;
 
-        // Parar e esconder Engine 3D
-        if (this.engine3d) {
-            this.engine3d.stop();
-        }
+        if (this.engine3d) this.engine3d.stop();
 
-        // Modal
+        // Modal de resultado detalhado
         const overlay = document.createElement('div');
-        overlay.className = 'modal-overlay';
+        overlay.className = 'match-result-overlay';
+
+        const prizeDisplay = isWinner && betAmount > 0
+            ? `<div class="result-prize">+${prize} 💰</div>`
+            : betAmount > 0
+            ? `<div class="result-prize negative">-${betAmount} 💰</div>`
+            : '';
+
+        const detailsHTML = betAmount > 0 ? `
+            <div class="result-details">
+                <div class="detail-item">
+                    <div class="detail-label">APOSTA</div>
+                    <div class="detail-value">${betAmount}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">PRÊMIO</div>
+                    <div class="detail-value">${isWinner ? prize : 0}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">TAXA (${data.commissionPercent || 10}%)</div>
+                    <div class="detail-value">${commission}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">TIPO</div>
+                    <div class="detail-value">${data.matchType === 'ai' ? 'vs IA' : 'PvP'}</div>
+                </div>
+            </div>` : '';
+
         overlay.innerHTML = `
-            <div class="modal-content">
-                <h2 style="color:${isWinner ? 'var(--success)' : 'var(--danger)'}; font-size:1.4rem;">
+            <div class="match-result-card">
+                <div class="result-title ${isWinner ? 'victory' : 'defeat'}">
                     ${isWinner ? '🏆 VITÓRIA!' : '💀 DERROTA'}
-                </h2>
-                <div class="modal-buttons">
-                    <button class="casino-btn" id="modal-close-btn">VOLTAR AO MENU</button>
+                </div>
+                <div class="result-subtitle">${isWinner ? 'Parabéns, Almirante!' : 'Não desista, tente novamente!'}</div>
+                ${prizeDisplay}
+                ${detailsHTML}
+                <div class="result-actions">
+                    <button class="casino-btn" id="result-menu-btn">MENU</button>
+                    <button class="casino-btn gold" id="result-rematch-btn">REVANCHE</button>
                 </div>
             </div>`;
         document.body.appendChild(overlay);
 
-        document.getElementById('modal-close-btn')?.addEventListener('click', () => {
+        document.getElementById('result-menu-btn')?.addEventListener('click', () => {
             overlay.remove();
             this.currentRoom = null;
             this.gameState = null;
+            this.matchType = 'pvp';
             this.showMainMenu();
+        });
+
+        document.getElementById('result-rematch-btn')?.addEventListener('click', () => {
+            overlay.remove();
+            this.currentRoom = null;
+            this.gameState = null;
+            if (data.matchType === 'ai') {
+                this.showAIModal();
+            } else {
+                this.quickMatch();
+            }
         });
     }
 
@@ -1051,6 +1177,268 @@ class MultiplayerGame {
     notify(msg, type = 'info') {
         if (window.showNotification) window.showNotification(msg, type);
         else alert(msg);
+    }
+
+    // ==================== WALLET ====================
+    updateWalletDisplay() {
+        const el = document.getElementById('header-coins-display');
+        if (el) el.innerText = `💰 ${Math.floor(this.coins).toLocaleString()}`;
+    }
+
+    showHeaderWallet(show) {
+        const wallet = document.getElementById('header-wallet');
+        if (wallet) wallet.classList.toggle('hidden', !show);
+    }
+
+    async fetchBalance() {
+        if (!this.token) return;
+        try {
+            const res = await fetch('/api/user/balance', {
+                headers: { 'Authorization': `Bearer ${this.token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                this.coins = data.coins;
+                this.updateWalletDisplay();
+            }
+        } catch { /* silencioso */ }
+    }
+
+    // ==================== DAILY BONUS ====================
+    async claimDailyBonus() {
+        if (!this.token) return;
+        try {
+            const res = await fetch('/api/daily-bonus', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                this.coins = data.coins;
+                this.updateWalletDisplay();
+                this.notify(`🎁 Bônus coletado! +${data.bonus} moedas`, 'success');
+            } else {
+                this.notify(data.error, 'warning');
+            }
+        } catch { this.notify('Erro ao coletar bônus', 'error'); }
+    }
+
+    // ==================== MARKETPLACE ====================
+    async showMarketplace() {
+        // Remove overlay anterior
+        document.querySelector('.marketplace-overlay')?.remove();
+
+        let packagesHTML = '<div class="coin-packages">';
+        try {
+            const res = await fetch('/api/marketplace/packages');
+            const packages = await res.json();
+            packages.forEach(pkg => {
+                const badgeHTML = pkg.badge ? `<div class="package-badge">${pkg.badge}</div>` : '';
+                const popularClass = pkg.badge === 'Mais Popular' ? ' popular' : '';
+                packagesHTML += `
+                    <div class="coin-package${popularClass}" data-pkg-id="${pkg.id}">
+                        ${badgeHTML}
+                        <div class="package-coins">
+                            ${pkg.label}
+                            <small>${pkg.coins.toLocaleString()} moedas</small>
+                        </div>
+                        <button class="package-price">R$ ${pkg.price.toFixed(2)}</button>
+                    </div>`;
+            });
+        } catch {
+            packagesHTML += '<p style="color:var(--text-dim);text-align:center;padding:20px;">Erro ao carregar pacotes</p>';
+        }
+        packagesHTML += '</div>';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'marketplace-overlay';
+        overlay.innerHTML = `
+            <div class="marketplace-container">
+                <button class="marketplace-close" id="marketplace-close">✕</button>
+                <div class="marketplace-header">
+                    <h2>🛒 MARKETPLACE</h2>
+                    <p>Seu saldo: 💰 ${Math.floor(this.coins).toLocaleString()}</p>
+                </div>
+                ${packagesHTML}
+            </div>`;
+        document.body.appendChild(overlay);
+
+        document.getElementById('marketplace-close').addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+        // Comprar pacote
+        overlay.querySelectorAll('.coin-package').forEach(card => {
+            card.addEventListener('click', async () => {
+                const pkgId = card.dataset.pkgId;
+                try {
+                    const res = await fetch('/api/marketplace/buy', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ packageId: pkgId })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        this.coins = data.coins;
+                        this.updateWalletDisplay();
+                        this.notify(`✅ ${data.message}`, 'success');
+                        overlay.remove();
+                    } else {
+                        this.notify(data.error, 'error');
+                    }
+                } catch { this.notify('Erro na compra', 'error'); }
+            });
+        });
+    }
+
+    // ==================== AI MATCH ====================
+    showAIModal() {
+        document.querySelector('.ai-modal-overlay')?.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'ai-modal-overlay';
+        overlay.innerHTML = `
+            <div class="ai-modal">
+                <h2>🤖 JOGAR vs IA</h2>
+                <div class="ai-difficulty-options">
+                    <button class="ai-diff-btn selected" data-diff="easy">
+                        <span class="ai-diff-label">🟢 Fácil</span>
+                        <span class="ai-diff-stars">⭐</span>
+                    </button>
+                    <button class="ai-diff-btn" data-diff="medium">
+                        <span class="ai-diff-label">🟡 Médio</span>
+                        <span class="ai-diff-stars">⭐⭐</span>
+                    </button>
+                    <button class="ai-diff-btn" data-diff="hard">
+                        <span class="ai-diff-label">🔴 Difícil</span>
+                        <span class="ai-diff-stars">⭐⭐⭐</span>
+                    </button>
+                </div>
+                <div class="ai-bet-input-group">
+                    <label>💰 Aposta:</label>
+                    <input type="number" id="ai-bet-amount" value="0" min="0" step="100">
+                </div>
+                <button class="ai-start-btn" id="ai-start-btn">⚔️ INICIAR PARTIDA</button>
+                <button class="casino-btn danger" style="width:100%;margin-top:10px;" id="ai-cancel-btn">CANCELAR</button>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        let selectedDiff = 'easy';
+        overlay.querySelectorAll('.ai-diff-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                overlay.querySelectorAll('.ai-diff-btn').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                selectedDiff = btn.dataset.diff;
+            });
+        });
+
+        document.getElementById('ai-start-btn').addEventListener('click', () => {
+            const betAmount = parseInt(document.getElementById('ai-bet-amount').value) || 0;
+            overlay.remove();
+            this.startAIMatch(selectedDiff, betAmount);
+        });
+
+        document.getElementById('ai-cancel-btn').addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    startAIMatch(difficulty, betAmount = 0) {
+        this.matchType = 'ai';
+        this.socket.emit('start_ai_match', { betAmount, difficulty }, (res) => {
+            if (res.success) {
+                this.currentRoom = res.roomCode;
+                this.notify(`Partida vs ${res.aiName} (${difficulty})`, 'info');
+            } else {
+                this.notify(res.error, 'error');
+                this.matchType = 'pvp';
+            }
+        });
+    }
+
+    // ==================== MATCHMAKING ====================
+    quickMatch() {
+        this.matchType = 'pvp';
+        this.showMatchmakingOverlay();
+
+        this.socket.emit('quick_match', { betAmount: 0 }, (res) => {
+            if (!res.success) {
+                this.hideMatchmaking();
+                this.notify(res.error, 'error');
+            } else if (res.matched) {
+                // Pareia imediata, o evento 'quick_match_found' cuida do resto
+            } else {
+                // Na fila
+                this.updateMatchmakingStatus(`Na fila (posição ${res.position})...`);
+            }
+        });
+    }
+
+    showMatchmakingOverlay() {
+        document.querySelector('.matchmaking-overlay')?.remove();
+        const overlay = document.createElement('div');
+        overlay.className = 'matchmaking-overlay';
+        overlay.id = 'matchmaking-overlay';
+        overlay.innerHTML = `
+            <div class="matchmaking-card">
+                <div class="matchmaking-spinner"></div>
+                <h3>PROCURANDO OPONENTE</h3>
+                <p id="matchmaking-status">Buscando jogadores...</p>
+                <button class="matchmaking-cancel" id="matchmaking-cancel">CANCELAR</button>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        document.getElementById('matchmaking-cancel').addEventListener('click', () => {
+            this.socket.emit('cancel_queue');
+            this.hideMatchmaking();
+        });
+    }
+
+    updateMatchmakingStatus(text) {
+        const el = document.getElementById('matchmaking-status');
+        if (el) el.innerText = text;
+    }
+
+    hideMatchmaking() {
+        document.getElementById('matchmaking-overlay')?.remove();
+    }
+
+    // ==================== PWA INSTALL ====================
+    setupPWAInstall() {
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            this.deferredPWAPrompt = e;
+            // Mostrar banner após 5 segundos
+            setTimeout(() => {
+                const banner = document.getElementById('pwa-install-banner');
+                if (banner && !window.matchMedia('(display-mode: standalone)').matches) {
+                    banner.classList.remove('hidden');
+                }
+            }, 5000);
+        });
+
+        window.addEventListener('appinstalled', () => {
+            this.deferredPWAPrompt = null;
+            document.getElementById('pwa-install-banner')?.classList.add('hidden');
+            this.notify('App instalado com sucesso!', 'success');
+        });
+    }
+
+    async installPWA() {
+        if (!this.deferredPWAPrompt) {
+            this.notify('Use o menu do navegador para instalar', 'info');
+            return;
+        }
+        this.deferredPWAPrompt.prompt();
+        const { outcome } = await this.deferredPWAPrompt.userChoice;
+        if (outcome === 'accepted') {
+            this.notify('Instalando...', 'success');
+        }
+        this.deferredPWAPrompt = null;
     }
 }
 

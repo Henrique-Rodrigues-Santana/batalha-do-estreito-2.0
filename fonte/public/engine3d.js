@@ -195,9 +195,16 @@ class CoreEngine {
             canvas.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;';
             document.body.appendChild(canvas);
         }
-        this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+        // Mobile detection for performance optimization
+        this.isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const maxPixelRatio = this.isMobile ? 1.5 : 2.0;
+
+        this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !this.isMobile });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
+
+        // Prevent touch gestures on canvas
+        canvas.style.touchAction = 'manipulation';
         this.renderer.shadowMap.enabled = true;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 0.9;
@@ -1082,14 +1089,41 @@ class Engine3D {
         this.mode = 'ATTACK'; // 'ATTACK' or 'PLACEMENT'
         this.attackedCells = new Set();
 
+        // Desktop events
         window.addEventListener('click', (e) => this.handleBoardClick(e));
         window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+
+        // Mobile touch events with drag detection
+        this._touchStartPos = null;
+        window.addEventListener('touchstart', (e) => {
+            if (e.touches && e.touches.length === 1) {
+                this._touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            // Track hover for placement preview on touch
+            if (this.mode === 'PLACEMENT' && e.touches && e.touches.length === 1) {
+                const touch = e.touches[0];
+                this.handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
+            }
+        }, { passive: true });
+
         window.addEventListener('touchend', (e) => {
             if (e.changedTouches && e.changedTouches.length > 0) {
                 const touch = e.changedTouches[0];
-                this.handleBoardClick({ clientX: touch.clientX, clientY: touch.clientY, target: e.target });
+                // Only register as click if finger didn't move much (prevents accidental taps while scrolling)
+                if (this._touchStartPos) {
+                    const dx = Math.abs(touch.clientX - this._touchStartPos.x);
+                    const dy = Math.abs(touch.clientY - this._touchStartPos.y);
+                    if (dx < 15 && dy < 15) {
+                        this.handleBoardClick({ clientX: touch.clientX, clientY: touch.clientY, target: e.target });
+                    }
+                }
+                this._touchStartPos = null;
             }
         });
+
         this.animate();
     }
 

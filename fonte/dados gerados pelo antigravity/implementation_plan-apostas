@@ -1,0 +1,156 @@
+# Plano de Implementação: PWA Mobile, Marketplace de Moedas, Apostas com 10% de Rake & Jogos Rápidos vs IA
+### Batalha do Estreito 2.0 — Versão Comercial Web App / PWA
+
+Este plano expande a arquitetura do jogo para incluir um ecossistema completo de **economia de moedas, marketplace de compra de créditos, sistema de apostas com comissão de 10% para a casa (Rake), partidas rápidas apostadas contra IA (com seletor de dificuldade)** e a infraestrutura **PWA Mobile otimizada para celulares em VPS/aaPanel**.
+
+---
+
+## 🎯 Novos Recursos Centrais
+
+```mermaid
+graph TD
+    User[Jogador no Celular PWA] --> Wallet[Carteira de Moedas / Saldo]
+    Wallet --> Market[Marketplace: Compra de Moedas / PIX / Pacotes]
+    Wallet --> PvP[Batalha Naval PvP Apostada]
+    Wallet --> PvAI[Batalha Naval Solo vs IA Apostada]
+    
+    PvP --> Pot1[Pote Total: Aposta x 2]
+    Pot1 --> Rake1[Comissão da Casa: 10%]
+    Pot1 --> Winner1[Prêmio do Vencedor: 90%]
+    
+    PvAI --> Pot2[Pote IA: Aposta x 2]
+    Pot2 --> Rake2[Comissão da Casa: 10%]
+    Pot2 --> Winner2[Prêmio do Vencedor: 90%]
+    
+    PvAI --> AIDiff[Seletor de Dificuldade: Fácil / Médio / Difícil]
+```
+
+1. **Marketplace de Moedas & Economia**:
+   - Moeda virtual oficial: **Créditos de Guerra / Moedas**.
+   - Loja com pacotes de moedas (ex: 1.000 moedas, 5.000 moedas, 15.000 moedas, 50.000 moedas).
+   - Checkout demonstrativo com simulação de **PIX / Cartão** (geração de QR Code e código Copia e Cola para demonstração comercial imediata e fácil plug com gateways reais como Mercado Pago/Asaas/Stripe).
+   - Bônus diário de moedas (Daily Reward) para engajar jogadores e manter liquidez de partidas.
+
+2. **Sistema de Apostas com Comissão da Casa (10% Rake)**:
+   - Toda partida com aposta gera um **Pote Total = (Aposta do Jogador 1 + Aposta do Jogador 2)**.
+   - **Comissão da Casa (Rake)**: **10% retidos automaticamente** para a plataforma no momento do encerramento.
+   - **Prêmio do Vencedor**: **90% do Pote** (ou seja, 1.8x o valor da aposta inicial).
+   - Registro contábil no banco de dados (`transactions` e `house_revenue`) para relatórios financeiros.
+
+3. **Partidas Rápidas Apostadas vs IA (Single Player com Apostas)**:
+   - O jogador escolhe o **Valor da Aposta** e o **Nível de Dificuldade da IA**:
+     - 🟢 **Recruta (Fácil)**: IA com disparos semi-aleatórios e mira básica.
+     - 🟡 **Comandante (Médio)**: IA com modo de caça inteligente (foca nas células adjacentes ao acertar um navio).
+     - 🔴 **Almirante (Difícil)**: IA tática avançada (algoritmo de paridade, mapa térmico de probabilidade e finalização cirúrgica de frotas).
+   - Se o jogador vencer a IA, ele recebe o pote com o mesmo cálculo (90% do pote, 10% para a casa).
+   - Se a IA vencer, o valor da aposta vai para a receita da casa.
+
+4. **PWA Mobile & Instalação Direta sem Play Store**:
+   - `manifest.json` com `display: standalone` e tema tático `#050b14`.
+   - `sw.js` com cache inteligente de assets 3D e Three.js.
+   - Banner de instalação 1-clique (Android) e guia passo a passo ilustrado (iOS Safari).
+   - Ergonomia com `100dvh`, Safe Area Insets e touch calibration.
+
+5. **Deploy Simples em VPS / aaPanel (Node.js + PM2 + SQLite)**:
+   - Sem Docker, auto-criação do banco de dados, variáveis `.env` e guia passo a passo para Nginx com WebSockets.
+
+---
+
+## 🛠️ Mudanças Detalhadas por Componente
+
+### Componente 1: Backend, Economia & Banco de Dados
+
+#### [MODIFY] [server.js](file:///c:/Users/henrique/Desktop/code/games/batalha-do-estreito-2.0/fonte/server.js)
+- **Atualização do Esquema SQLite**:
+  - `users`: Adicionar coluna `coins REAL DEFAULT 1000`.
+  - `transactions`: Criar tabela para extrato financeiro (`id, user_id, type, amount, description, timestamp`).
+  - `house_revenue`: Criar tabela para registro contínuo dos 10% de comissão retidos em cada partida PvP e PvAI.
+- **Novas Rotas da API de Economia**:
+  - `GET /api/user/balance`: Retorna moedas, histórico de transações e estatísticas do jogador.
+  - `POST /api/marketplace/buy`: Processa compra de pacotes de moedas com simulação de PIX.
+  - `POST /api/daily-bonus`: Coleta moedas grátis a cada 24 horas.
+- **Lógica de Apostas & Rake no Socket.io (PvP)**:
+  - Validação de saldo antes de aceitar entrada em salas com apostas.
+  - No fim da partida: dedução da taxa da casa de 10% e pagamento de 90% do pote ao vencedor.
+- **Lógica de Partida Apostada vs IA (PvAI)**:
+  - Rota `POST /api/ai-match/start`: Inicia partida solo com aposta, desconta moedas do jogador e configura a frota da IA no servidor.
+  - Rota `POST /api/ai-match/action`: Processa o tiro do jogador e a resposta tática da IA conforme a dificuldade escolhida (Fácil/Médio/Difícil).
+  - No fim do jogo vs IA: se vitória do jogador, paga 90% do pote (`bet * 1.8`); se derrota, o saldo é retido pela casa.
+- **Validações de Segurança & Anti-Cheat**:
+  - Sanitização de XSS no chat.
+  - Validação estrita de posicionamento de frotas (5 navios válidos).
+
+---
+
+### Componente 2: Frontend & Telas do Marketplace e IA (HTML/CSS)
+
+#### [MODIFY] [index.html](file:///c:/Users/henrique/Desktop/code/games/batalha-do-estreito-2.0/fonte/public/index.html)
+- Adicionar tags PWA (`manifest.json`, `apple-touch-icon`, `viewport-fit=cover`).
+- Adicionar no header tático o **Display de Saldo de Moedas** (`💰 1.000 MOEDAS`) com botão de recarga `[+]`.
+- Inserir **Modal do Marketplace** com vitrine de pacotes de moedas, simulação de QR Code PIX e confirmação de pagamento.
+- Inserir **Modal de Partida Rápida vs IA** com seletor de Dificuldade (Fácil, Médio, Difícil) e seletor de Aposta rápida (50, 100, 250, 500, 1000 moedas).
+- Inserir **Banner de Instalação PWA** e Modal para iOS Safari.
+
+#### [MODIFY] [style.css](file:///c:/Users/henrique/Desktop/code/games/batalha-do-estreito-2.0/fonte/public/style.css)
+- Estilos para a vitrine do Marketplace (cards de pacotes com brilho neon/dourado, badges "Mais Popular", "+20% Bônus").
+- Estilos para o simulador de PIX (QR Code, input com botão Copia e Cola, timer de expiração).
+- Estilos para o painel de configuração da IA (botões de dificuldade com cores verde/amarelo/vermelho tático).
+- Ajustes de `100dvh`, **Safe Area Insets** para entalhes de celular e `touch-action: manipulation`.
+
+---
+
+### Componente 3: Lógica do Cliente, IA & PWA (JS)
+
+#### [MODIFY] [script.js](file:///c:/Users/henrique/Desktop/code/games/batalha-do-estreito-2.0/fonte/public/script.js)
+- **Gerenciador de Carteira & Saldo**:
+  - Atualização em tempo real do saldo de moedas do jogador.
+  - Integração com o Marketplace e coleta de bônus diário.
+- **Módulo de Jogo vs IA (Solo Apostado)**:
+  - Fluxo completo de aposta, posicionamento de navios, disparo de ações e recebimento de contra-ataque da IA com animações completas do Drone 3D.
+  - Tela de vitória/derrota exibindo o lucro líquido com desconto explícito da taxa da casa de 10%.
+- **Módulo PWA & Instalação**:
+  - Captura do evento `beforeinstallprompt` e exibição do botão "📲 INSTALAR APP".
+  - Guia visual para iOS Safari.
+  - Registro do Service Worker.
+- **Sanitização Anti-XSS**: Proteção completa em mensagens de chat e nomes de usuário.
+
+#### [MODIFY] [engine3d.js](file:///c:/Users/henrique/Desktop/code/games/batalha-do-estreito-2.0/fonte/public/engine3d.js)
+- Limitação de `pixelRatio` em 1.5 para smartphones.
+- Touch Raycasting aprimorado para toques no tabuleiro 3D sem lag.
+- Otimização do fluxo de combate tanto para partidas PvP quanto contra a IA.
+
+#### [NEW] [manifest.json](file:///c:/Users/henrique/Desktop/code/games/batalha-do-estreito-2.0/fonte/public/manifest.json)
+- Configuração PWA standalone com ícones em alta resolução.
+
+#### [NEW] [sw.js](file:///c:/Users/henrique/Desktop/code/games/batalha-do-estreito-2.0/fonte/public/sw.js)
+- Service worker com cache offline de assets 3D e scripts.
+
+---
+
+### Componente 4: Guias e Configurações para aaPanel / VPS
+
+#### [NEW] [.env.example](file:///c:/Users/henrique/Desktop/code/games/batalha-do-estreito-2.0/fonte/.env.example)
+- Exemplo limpo de variáveis (`PORT=3000`, `JWT_SECRET=...`, `HOUSE_COMMISSION_PERCENT=10`).
+
+#### [NEW] [guia_deploy_aapanel.md](file:///c:/Users/henrique/Desktop/code/games/batalha-do-estreito-2.0/fonte/dados%20gerados%20pelo%20antigravity/guia_deploy_aapanel.md)
+- Guia prático de configuração no aaPanel (Node.js Project Manager, Nginx Reverse Proxy com suporte a WebSocket e SSL gratuito).
+
+---
+
+## 🔍 Plano de Verificação e Testes
+
+1. **Testes de Economia & Apostas**:
+   - Testar compra de moedas no Marketplace (verificar incremento de saldo e registro em `transactions`).
+   - Testar partida PvP apostando 100 moedas: verificar que o vencedor recebe 180 moedas e a casa registra 20 moedas (10% de rake).
+2. **Testes de Partida vs IA**:
+   - Testar jogo rápido nos 3 níveis de dificuldade (Fácil, Médio, Difícil), verificando se a IA ataca corretamente e as moedas são creditadas/debitadas com precisão.
+3. **Testes de PWA & Mobile**:
+   - Testar instalação PWA no Android/Chrome e modal no Safari iOS.
+   - Verificar `100dvh` e Safe Area em emulador de iPhone e celulares Android.
+4. **Testes Automatizados (`npm test`)**:
+   - Executar testes de unidade e regras de batalha naval com as novas funções de validação.
+
+---
+
+## 💬 Aprovação do Usuário
+Você aprova a execução completa deste plano? Ao confirmar, iniciaremos a implementação imediata de todas as funcionalidades!
