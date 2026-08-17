@@ -1231,6 +1231,18 @@ class MultiplayerGame {
         // Remove overlay anterior
         document.querySelector('.marketplace-overlay')?.remove();
 
+        // Card de Anúncio Premiado (200 moedas / 15s)
+        const adCardHTML = `
+            <div class="rewarded-ad-card" id="watch-ad-card">
+                <div class="rewarded-ad-icon">📺</div>
+                <div class="rewarded-ad-info">
+                    <strong>Assistir Anúncio (15s)</strong>
+                    <span>Ganhe +200 moedas grátis</span>
+                </div>
+                <button class="rewarded-ad-btn" id="watch-ad-btn">ASSISTIR</button>
+            </div>
+        `;
+
         let packagesHTML = '<div class="coin-packages">';
         try {
             const res = await fetch('/api/marketplace/packages');
@@ -1262,12 +1274,20 @@ class MultiplayerGame {
                     <h2>🛒 MARKETPLACE</h2>
                     <p>Seu saldo: 💰 ${Math.floor(this.coins).toLocaleString()}</p>
                 </div>
+                ${adCardHTML}
+                <div style="font-size:0.75rem;color:var(--text-dim);margin:16px 0 8px;text-transform:uppercase;letter-spacing:1px;font-family:'Orbitron',sans-serif;">Pacotes de Moedas (PIX)</div>
                 ${packagesHTML}
             </div>`;
         document.body.appendChild(overlay);
 
         document.getElementById('marketplace-close').addEventListener('click', () => overlay.remove());
         overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+        // Handler do Anúncio Premiado
+        document.getElementById('watch-ad-btn')?.addEventListener('click', () => {
+            overlay.remove();
+            this.watchRewardedAd();
+        });
 
         // Comprar pacote
         overlay.querySelectorAll('.coin-package').forEach(card => {
@@ -1293,6 +1313,81 @@ class MultiplayerGame {
                     }
                 } catch { this.notify('Erro na compra', 'error'); }
             });
+        });
+    }
+
+    // ==================== REWARDED AD (15s / 200 COINS) ====================
+    watchRewardedAd() {
+        // Modal simulando o Player de Anúncio de 15 segundos
+        const overlay = document.createElement('div');
+        overlay.className = 'ad-player-overlay';
+        overlay.innerHTML = `
+            <div class="ad-player-card">
+                <div class="ad-header">
+                    <span class="ad-badge">📢 ANÚNCIO PREMIADO</span>
+                    <span class="ad-timer" id="ad-countdown">15s</span>
+                </div>
+                <div class="ad-content-area">
+                    <div class="ad-animation-drone">🚁</div>
+                    <h3>Batalha do Estreito 2.0</h3>
+                    <p>O maior simulador de combate naval tático com Drones Kamikaze!</p>
+                    <div class="ad-progress-track">
+                        <div class="ad-progress-fill" id="ad-progress-bar"></div>
+                    </div>
+                </div>
+                <div class="ad-footer">
+                    <span id="ad-status-text">Assista até o fim para receber +200 moedas...</span>
+                    <button class="ad-close-btn hidden" id="ad-finish-btn">COLETAR +200 💰</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        let secondsLeft = 15;
+        const countdownEl = document.getElementById('ad-countdown');
+        const progressBar = document.getElementById('ad-progress-bar');
+        const statusText = document.getElementById('ad-status-text');
+        const finishBtn = document.getElementById('ad-finish-btn');
+
+        const adInterval = setInterval(() => {
+            secondsLeft--;
+            if (countdownEl) countdownEl.innerText = `${secondsLeft}s`;
+            if (progressBar) {
+                const percent = ((15 - secondsLeft) / 15) * 100;
+                progressBar.style.width = `${percent}%`;
+            }
+
+            if (secondsLeft <= 0) {
+                clearInterval(adInterval);
+                if (countdownEl) countdownEl.innerText = '✓ COMPLETO';
+                if (statusText) statusText.innerText = 'Parabéns! Recompensa liberada:';
+                if (finishBtn) finishBtn.classList.remove('hidden');
+            }
+        }, 1000);
+
+        finishBtn?.addEventListener('click', async () => {
+            finishBtn.disabled = true;
+            try {
+                const res = await fetch('/api/watch-ad', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.coins = data.coins;
+                    this.updateWalletDisplay();
+                    this.notify(`🎁 +${data.reward} moedas creditadas!`, 'success');
+                } else {
+                    this.notify(data.error, 'warning');
+                }
+            } catch {
+                this.notify('Erro ao creditar recompensa', 'error');
+            } finally {
+                overlay.remove();
+            }
         });
     }
 

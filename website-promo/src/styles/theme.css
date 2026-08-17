@@ -1,0 +1,208 @@
+/* ==========================================================
+   DESIGN SYSTEM TÁTICO — BATALHA DO ESTREITO 2.0 PORTAL
+   Estética Militar Futurista, Cyber Cyan, Radar Green, Gold
+   ========================================================== */
+
+:root {
+  --bg-dark: #050b14;
+  --bg-card: rgba(13, 27, 42, 0.85);
+  --bg-card-hover: rgba(20, 39, 61, 0.95);
+  
+  --cyan: #00f2ff;
+  --cyan-dim: rgba(0, 242, 255, 0.15);
+  --cyan-glow: rgba(0, 242, 255, 0.4);
+  
+  --green: #00ff88;
+  --green-dim: rgba(0, 255, 136, 0.15);
+  
+  --gold: #ffd700;
+  --gold-dim: rgba(255, 215, 0, 0.15);
+  
+  --red: #ff4a4a;
+  --red-dim: rgba(255, 74, 74, 0.15);
+  
+  --text-main: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  
+  --border-cyan: rgba(0, 242, 255, 0.25);
+  --border-glass: rgba(255, 255, 255, 0.08);
+  
+  --font-display: 'Orbitron', -apple-system, sans-serif;
+  --font-tech: 'Rajdhani', monospace, sans-serif;
+  --font-body: 'Inter', sans-serif;
+  
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+  line-height: 1.6;
+  position: relative;
+}
+
+/* CRT Scanlines Overlay */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.12) 50%),
+              linear-gradient(90deg, rgba(0, 242, 255, 0.01), rgba(0, 242, 255, 0.005), rgba(0, 242, 255, 0.01));
+  background-size: 100% 3px, 3px 100%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}
+
+/* Utilitários Tipográficos */
+.font-display { font-family: var(--font-display); }
+.font-tech { font-family: var(--font-tech); }
+.font-body { font-family: var(--font-body); }
+
+/* Glow Effects */
+.glow-cyan {
+  text-shadow: 0 0 16px var(--cyan-glow);
+}
+.glow-gold {
+  text-shadow: 0 0 16px rgba(255, 215, 0, 0.4);
+}
+.glow-green {
+  text-shadow: 0 0 16px rgba(0, 255, 136, 0.4);
+}
+
+.box-glow-cyan {
+  box-shadow: 0 0 24px rgba(0, 242, 255, 0.2);
+}
+
+/* Botões Militares Táticos */
+.btn-tactical {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background: linear-gradient(135deg, rgba(0, 242, 255, 0.15), rgba(0, 242, 255, 0.05));
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-tactical:hover {
+  background: var(--cyan);
+  color: var(--bg-dark);
+  box-shadow: 0 0 30px rgba(0, 242, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-tactical-gold {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 215, 0, 0.05));
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.btn-tactical-gold:hover {
+  background: var(--gold);
+  color: var(--bg-dark);
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
+}
+
+.btn-tactical-green {
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 255, 136, 0.05));
+  border-color: var(--green);
+  color: var(--green);
+}
+.btn-tactical-green:hover {
+  background: var(--green);
+  color: var(--bg-dark);
+  box-shadow: 0 0 30px rgba(0, 255, 136, 0.4);
+}
+
+/* Cards Táticos / HUD Glass */
+.tactical-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-cyan);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(16px);
+  padding: 24px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.tactical-card:hover {
+  border-color: var(--cyan);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 36px rgba(0, 242, 255, 0.12);
+}
+
+/* Badges Militares */
+.badge-classified {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 74, 74, 0.15);
+  border: 1px solid rgba(255, 74, 74, 0.4);
+  color: var(--red);
+  font-family: var(--font-tech);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: 4px;
+}
+
+.badge-top-secret {
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  color: var(--gold);
+}
+
+.badge-active {
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  color: var(--green);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 255, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan);
+}

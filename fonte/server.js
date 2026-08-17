@@ -644,6 +644,47 @@ app.post('/api/marketplace/buy', async (req, res) => {
   } catch { res.status(401).json({ error: 'Token inválido' }); }
 });
 
+// ------ Anúncios Premiados (Rewarded Ads: 200 moedas / 15s) ------
+const userLastAdWatch = new Map();
+const AD_REWARD_COINS = 200;
+const AD_COOLDOWN_MS = 15000; // 15 segundos
+
+app.post('/api/watch-ad', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Token necessário' });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const userId = decoded.id;
+    const now = Date.now();
+
+    const lastWatch = userLastAdWatch.get(userId) || 0;
+    if (now - lastWatch < AD_COOLDOWN_MS) {
+      const waitSeconds = Math.ceil((AD_COOLDOWN_MS - (now - lastWatch)) / 1000);
+      return res.status(429).json({ error: `Aguarde ${waitSeconds}s para assistir outro anúncio.` });
+    }
+
+    userLastAdWatch.set(userId, now);
+
+    const user = await dbGet('SELECT * FROM users WHERE id = ?', [userId]);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    const newBalance = (user.coins || 0) + AD_REWARD_COINS;
+    await dbRun('UPDATE users SET coins = ? WHERE id = ?', [newBalance, userId]);
+    await dbRun(
+      'INSERT INTO transactions (user_id, type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)',
+      [userId, 'ad_reward', AD_REWARD_COINS, newBalance, `Anúncio premiado (15s): +${AD_REWARD_COINS} moedas`]
+    );
+
+    res.json({
+      success: true,
+      coins: newBalance,
+      reward: AD_REWARD_COINS,
+      message: `+${AD_REWARD_COINS} moedas recebidas!`
+    });
+  } catch { res.status(401).json({ error: 'Token inválido' }); }
+});
+
 app.get('/api/user/transactions', async (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Token necessário' });
@@ -1100,22 +1141,28 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Se acertou, o jogador joga de novo
+    // Se acertou, o jogador joga de novo (aguardar 3s da animação antes do novo turno)
     if (result.hit) {
       room.currentTurn = socket.userId;
-      socket.emit('turn_change', { playerId: socket.userId, timeLimit: 20 });
-      startAITurnTimeout(roomCode, socket.userId);
+      setTimeout(() => {
+        const r = activeGames.get(roomCode);
+        if (r && r.status === 'playing') {
+          socket.emit('turn_change', { playerId: socket.userId, timeLimit: 20 });
+          startAITurnTimeout(roomCode, socket.userId);
+        }
+      }, 3000);
       return;
     }
 
-    // Turno da IA
+    // Turno da IA: aguardar 3 segundos para a animação 3D do drone do jogador concluir
     room.currentTurn = AI_USER_ID;
-    socket.emit('turn_change', { playerId: AI_USER_ID, timeLimit: 20 });
-
-    // IA joga após 1.5 segundos (simular "pensamento")
     setTimeout(async () => {
-      await executeAITurn(roomCode, socket);
-    }, 1500);
+      const r = activeGames.get(roomCode);
+      if (r && r.status === 'playing') {
+        socket.emit('turn_change', { playerId: AI_USER_ID, timeLimit: 20 });
+        await executeAITurn(roomCode, socket);
+      }
+    }, 3000);
   });
 
   // ----- Ação PvP -----
@@ -1427,15 +1474,20 @@ async function executeAITurn(roomCode, playerSocket) {
     return;
   }
 
-  // Se acertou, IA joga de novo (após delay)
+  // Se acertou, IA joga de novo (aguardar 3.5s para a animação do drone da IA concluir)
   if (result.hit) {
     room.currentTurn = AI_USER_ID;
-    setTimeout(() => executeAITurn(roomCode, playerSocket), 2000);
+    setTimeout(() => executeAITurn(roomCode, playerSocket), 3500);
   } else {
-    // Passar para o jogador
-    room.currentTurn = playerId;
-    playerSocket.emit('turn_change', { playerId, timeLimit: 20 });
-    startAITurnTimeout(roomCode, playerId);
+    // Passar para o jogador (aguardar 3s para o drone da IA terminar o impacto na água)
+    setTimeout(() => {
+      const r = activeGames.get(roomCode);
+      if (r && r.status === 'playing') {
+        r.currentTurn = playerId;
+        playerSocket.emit('turn_change', { playerId, timeLimit: 20 });
+        startAITurnTimeout(roomCode, playerId);
+      }
+    }, 3000);
   }
 }
 
