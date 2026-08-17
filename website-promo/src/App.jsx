@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import LoreSection from './components/LoreSection';
 import ArmamentShowcase from './components/ArmamentShowcase';
+import CinematicCombatDemo from './components/CinematicCombatDemo';
 import TacticalRadarDemo from './components/TacticalRadarDemo';
 import GameplayFeatures from './components/GameplayFeatures';
 import HallOfFame from './components/HallOfFame';
@@ -38,6 +39,9 @@ function MainApp() {
 
       {/* Dossiê & Lore */}
       <LoreSection />
+
+      {/* Demonstração Cinemática de Impacto 3D (Atacante vs Defensor) */}
+      <CinematicCombatDemo />
 
       {/* Showroom 3D de Armas */}
       <ArmamentShowcase />

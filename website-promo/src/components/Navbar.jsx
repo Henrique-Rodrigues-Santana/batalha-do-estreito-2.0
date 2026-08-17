@@ -45,9 +45,12 @@ export default function Navbar({ onOpenAuth, onOpenProfile, onOpenMarketplace })
         </a>
 
         {/* Links de Navegação Desktop */}
-        <nav style={{ display: 'none', alignItems: 'center', gap: '28px' }} className="desktop-nav">
-          <a href="#dossier" style={{ color: 'var(--text-main)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 600, transition: 'color 0.2s' }}>
+        <nav style={{ display: 'none', alignItems: 'center', gap: '24px' }} className="desktop-nav">
+          <a href="#dossier" style={{ color: 'var(--text-main)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 600 }}>
             DOSSIÊ 2026
+          </a>
+          <a href="#cinematics" style={{ color: 'var(--cyan)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700 }}>
+            🎬 CINEMÁTICA 3D
           </a>
           <a href="#arsenal" style={{ color: 'var(--text-main)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 600 }}>
             ARSENAL 3D

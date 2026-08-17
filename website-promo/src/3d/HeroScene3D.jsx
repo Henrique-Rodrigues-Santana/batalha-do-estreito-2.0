@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export default function HeroScene3D() {
   const mountRef = useRef(null);
@@ -24,22 +25,27 @@ export default function HeroScene3D() {
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
     container.appendChild(renderer.domElement);
 
     // Luzes
-    const ambientLight = new THREE.AmbientLight(0x0d2847, 1.8);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
     scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0x00f2ff, 3.5);
+    dirLight.position.set(10, 20, 15);
+    scene.add(dirLight);
 
     const pointLight = new THREE.PointLight(0x00f2ff, 4, 60);
     pointLight.position.set(0, 10, 10);
     scene.add(pointLight);
 
-    const redLight = new THREE.PointLight(0xff4a4a, 2, 40);
+    const redLight = new THREE.PointLight(0xff4a4a, 2.5, 40);
     redLight.position.set(-15, 4, -5);
     scene.add(redLight);
 
     // 🌊 Mar Tático (Grade de Ondas)
-    const gridGeometry = new THREE.PlaneGeometry(80, 80, 50, 50);
+    const gridGeometry = new THREE.PlaneGeometry(90, 90, 60, 60);
     gridGeometry.rotateX(-Math.PI / 2);
 
     const gridMaterial = new THREE.MeshStandardMaterial({
@@ -55,54 +61,55 @@ export default function HeroScene3D() {
     oceanMesh.position.y = -2;
     scene.add(oceanMesh);
 
-    // 🛸 Drone Kamikaze Shahed-136 (Geometria Tática Procedural)
-    const droneGroup = new THREE.Group();
+    // 🛸 Carregar Modelo 3D GLB Real: Shahed-136
+    const dronePivot = new THREE.Group();
+    scene.add(dronePivot);
 
-    // Corpo asa-delta
-    const wingShape = new THREE.Shape();
-    wingShape.moveTo(0, 3.5);
-    wingShape.lineTo(4, -2.5);
-    wingShape.lineTo(3.2, -2.8);
-    wingShape.lineTo(0, -1.8);
-    wingShape.lineTo(-3.2, -2.8);
-    wingShape.lineTo(-4, -2.5);
-    wingShape.closePath();
+    let loadedModel = null;
+    const loader = new GLTFLoader();
 
-    const extrudeSettings = { depth: 0.4, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.1, bevelThickness: 0.1 };
-    const wingGeometry = new THREE.ExtrudeGeometry(wingShape, extrudeSettings);
-    wingGeometry.rotateX(Math.PI / 2);
+    loader.load(
+      '/assets/models/shahed-136.glb',
+      (gltf) => {
+        loadedModel = gltf.scene;
 
-    const droneMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      metalness: 0.9,
-      roughness: 0.3
-    });
+        // Auto-centralizar e ajustar escala do modelo GLB
+        const box = new THREE.Box3().setFromObject(loadedModel);
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 5.0 / (maxDim || 1); // Escala para ~5 unidades no mundo
 
-    const droneBody = new THREE.Mesh(wingGeometry, droneMaterial);
-    droneGroup.add(droneBody);
+        loadedModel.scale.set(scale, scale, scale);
 
-    // Cabine / Sensores
-    const sensorGeo = new THREE.SphereGeometry(0.35, 16, 16);
-    const sensorMat = new THREE.MeshBasicMaterial({ color: 0x00f2ff });
-    const sensor = new THREE.Mesh(sensorGeo, sensorMat);
-    sensor.position.set(0, 0.1, -3.2);
-    droneGroup.add(sensor);
+        // Centralizar ponto de ancoragem
+        const center = box.getCenter(new THREE.Vector3());
+        loadedModel.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
 
-    // Luzes de ponta de asa
-    const lightLeft = new THREE.PointLight(0xff4a4a, 2, 4);
-    lightLeft.position.set(-3.8, 0, 2);
-    droneGroup.add(lightLeft);
+        // Habilitar sombras e materiais
+        loadedModel.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (child.material) {
+              child.material.metalness = 0.7;
+              child.material.roughness = 0.3;
+            }
+          }
+        });
 
-    const lightRight = new THREE.PointLight(0x00ff88, 2, 4);
-    lightRight.position.set(3.8, 0, 2);
-    droneGroup.add(lightRight);
+        dronePivot.add(loadedModel);
+      },
+      undefined,
+      (err) => {
+        console.warn('Erro ao carregar modelo GLB no Hero:', err);
+      }
+    );
 
-    droneGroup.position.set(0, 3, 2);
-    droneGroup.rotation.x = 0.2;
-    scene.add(droneGroup);
+    dronePivot.position.set(0, 3.5, 2);
+    dronePivot.rotation.x = 0.2;
 
     // ✨ Partículas de Poeira / Flare
-    const particlesCount = 120;
+    const particlesCount = 150;
     const posArray = new Float32Array(particlesCount * 3);
     for (let i = 0; i < particlesCount * 3; i += 3) {
       posArray[i] = (Math.random() - 0.5) * 50;
@@ -158,12 +165,12 @@ export default function HeroScene3D() {
       }
       oceanMesh.geometry.attributes.position.needsUpdate = true;
 
-      // Voo do Drone (Curva suave + reação ao mouse)
-      droneGroup.position.y = 3 + Math.sin(elapsedTime * 2) * 0.6;
-      droneGroup.position.x = Math.sin(elapsedTime * 0.8) * 3 + mouseX * 2;
-      droneGroup.rotation.z = -Math.sin(elapsedTime * 0.8) * 0.2 - mouseX * 0.3;
-      droneGroup.rotation.y = Math.sin(elapsedTime * 0.5) * 0.3 + mouseX * 0.4;
-      droneGroup.rotation.x = 0.2 + mouseY * 0.2;
+      // Voo do Drone GLB Real
+      dronePivot.position.y = 3.5 + Math.sin(elapsedTime * 2) * 0.5;
+      dronePivot.position.x = Math.sin(elapsedTime * 0.8) * 3 + mouseX * 2;
+      dronePivot.rotation.z = -Math.sin(elapsedTime * 0.8) * 0.2 - mouseX * 0.3;
+      dronePivot.rotation.y = Math.sin(elapsedTime * 0.5) * 0.3 + mouseX * 0.4;
+      dronePivot.rotation.x = 0.2 + mouseY * 0.2;
 
       // Partículas flutuantes
       particles.rotation.y = elapsedTime * 0.05;
