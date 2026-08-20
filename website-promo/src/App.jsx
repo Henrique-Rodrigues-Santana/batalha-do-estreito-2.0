@@ -18,6 +18,41 @@ const CinematicCombatDemo = React.lazy(() => import('./components/CinematicComba
 const ArmamentShowcase = React.lazy(() => import('./components/ArmamentShowcase'));
 const TacticalRadarDemo = React.lazy(() => import('./components/TacticalRadarDemo'));
 
+// Reusable Section Divider
+function SectionDivider({ variant = 'cyan' }) {
+  return (
+    <div
+      className={`section-divider ${variant === 'gold' ? 'section-divider-gold' : ''}`}
+      style={{ margin: '0 auto', padding: '0 24px' }}
+    />
+  );
+}
+
+// Loading fallback with military styling
+function LoadingFallback({ text = 'Carregando...' }) {
+  return (
+    <div style={{
+      padding: '100px 24px',
+      textAlign: 'center',
+      color: 'var(--cyan)',
+      fontFamily: 'var(--font-display)',
+      fontSize: '0.9rem',
+      letterSpacing: '2px'
+    }}>
+      <div style={{
+        width: '40px',
+        height: '40px',
+        border: '2px solid var(--border-cyan)',
+        borderTop: '2px solid var(--cyan)',
+        borderRadius: '50%',
+        animation: 'radarSweep 1s linear infinite',
+        margin: '0 auto 16px'
+      }} />
+      {text}
+    </div>
+  );
+}
+
 function MainApp() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authInitialTab, setAuthInitialTab] = useState('login');
@@ -41,32 +76,46 @@ function MainApp() {
       {/* Hero 3D */}
       <HeroSection onOpenAuth={handleOpenAuth} />
 
+      <SectionDivider />
+
       {/* Dossiê & Lore */}
       <LoreSection />
 
+      <SectionDivider />
+
       {/* Demonstração Cinemática de Impacto 3D (Atacante vs Defensor) */}
-      <Suspense fallback={<div style={{ padding: '100px', textAlign: 'center', color: 'var(--cyan)' }}>Carregando simulação 3D...</div>}>
+      <Suspense fallback={<LoadingFallback text="Carregando simulação 3D..." />}>
         <CinematicCombatDemo />
       </Suspense>
 
-      {/* Economia ao Vivo (NOVO) */}
+      {/* Economia ao Vivo */}
       <LiveEconomy />
 
+      <SectionDivider variant="gold" />
+
       {/* Showroom 3D de Armas */}
-      <Suspense fallback={<div style={{ padding: '100px', textAlign: 'center', color: 'var(--cyan)' }}>Carregando arsenal 3D...</div>}>
+      <Suspense fallback={<LoadingFallback text="Carregando arsenal 3D..." />}>
         <ArmamentShowcase />
       </Suspense>
 
+      <SectionDivider />
+
       {/* Simulador Interativo */}
-      <Suspense fallback={<div style={{ padding: '100px', textAlign: 'center', color: 'var(--cyan)' }}>Carregando radar tático...</div>}>
-        <TacticalRadarDemo />
+      <Suspense fallback={<LoadingFallback text="Carregando radar tático..." />}>
+        <TacticalRadarDemo onOpenAuth={handleOpenAuth} />
       </Suspense>
 
-      {/* Como Jogar (NOVO) */}
+      <SectionDivider />
+
+      {/* Como Jogar */}
       <HowToPlay />
+
+      <SectionDivider />
 
       {/* Mecânicas de Jogo */}
       <GameplayFeatures />
+
+      <SectionDivider variant="gold" />
 
       {/* Salão da Fama */}
       <HallOfFame />
@@ -74,7 +123,7 @@ function MainApp() {
       {/* Rodapé */}
       <Footer onOpenAuth={handleOpenAuth} />
 
-      {/* CTA Mobile Fixo (NOVO) */}
+      {/* CTA Mobile Fixo */}
       <StickyMobileCTA onOpenAuth={handleOpenAuth} />
 
       {/* Modais Globais */}

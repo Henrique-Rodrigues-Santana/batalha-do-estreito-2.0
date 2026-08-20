@@ -91,261 +91,35 @@ export default function CinematicCombatDemo() {
         </button>
       </div>
 
-      {/* Frame Cinemático 3D */}
+      {/* Frame Cinemático */}
       <div style={{
         maxWidth: '960px',
         margin: '0 auto',
         aspectRatio: '16/9',
         minHeight: '420px',
-        background: 'linear-gradient(145deg, rgba(13, 27, 42, 0.95), rgba(5, 11, 20, 0.98))',
-        border: `1px solid ${viewMode === 'attack' ? (attackPhase === 'LOCKED' ? 'var(--gold)' : attackPhase === 'DIVING' ? 'var(--red)' : 'var(--cyan)') : 'var(--red)'}`,
+        background: 'var(--bg-dark)',
+        border: '1px solid var(--border-cyan)',
         borderRadius: '16px',
         position: 'relative',
         overflow: 'hidden',
-        boxShadow: viewMode === 'attack' ? '0 0 60px rgba(0, 242, 255, 0.25)' : '0 0 60px rgba(255, 74, 74, 0.25)'
+        boxShadow: '0 0 60px rgba(0, 242, 255, 0.15)'
       }}>
-        {/* Renderizador 3D */}
-        <CombatSimulation3D
-          viewMode={viewMode}
-          onPhaseChange={(phase) => setAttackPhase(phase)}
-          onImpact={() => setImpactCount(prev => prev + 1)}
-          onSignalLost={handleSignalLost}
+        <video
+          key={viewMode}
+          src={viewMode === 'attack' ? '/assets/video-drone/drone_strike.mp4' : '/assets/video-drone/51bae96f99492dd57cd2fa7d0510443e_1_1777395918_8000.mp4'}
+          autoPlay
+          loop
+          muted
+          playsInline
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+            filter: viewMode === 'defense' ? 'contrast(1.15) saturate(0.85)' : 'none'
+          }}
         />
-
-        {/* OVERLAY DE PERDA DE SINAL / ESTÁTICA CRT */}
-        {signalLost && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'radial-gradient(circle, rgba(0,0,0,0.88) 0%, rgba(15,15,15,0.98) 100%)',
-            zIndex: 99,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            animation: 'staticFlicker 0.1s infinite',
-            pointerEvents: 'none'
-          }}>
-            {/* Scanlines pesadas de ruído */}
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.12) 0px, rgba(255,255,255,0.12) 2px, transparent 2px, transparent 4px)',
-              pointerEvents: 'none'
-            }} />
-
-            <div style={{
-              padding: '18px 28px',
-              background: 'rgba(255, 74, 74, 0.25)',
-              border: '2px solid var(--red)',
-              borderRadius: '8px',
-              textAlign: 'center',
-              boxShadow: '0 0 50px rgba(255, 74, 74, 0.8)'
-            }}>
-              <div className="font-display" style={{ color: 'var(--red)', fontSize: '1.5rem', fontWeight: 900, letterSpacing: '4px' }}>
-                ⚡ SIGNAL LOST // 0 FPS
-              </div>
-              <div className="font-tech" style={{ color: '#fff', fontSize: '0.85rem', marginTop: '6px', letterSpacing: '1px' }}>
-                IMPACTO DIRETO NO CONVÉS // TELEMETRIA ENCERRADA
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================= */}
-        {/* HUD HMD ESTILO CAPACETE DE CAÇA (F-35 / SU-57)            */}
-        {/* ========================================================= */}
-        {viewMode === 'attack' && !signalLost && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
-            zIndex: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            padding: '20px'
-          }}>
-            {/* Topo do HMD: Bússola e Modo de Busca */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 14px',
-                background: 'rgba(5, 11, 20, 0.85)',
-                border: `1px solid ${attackPhase === 'LOCKED' ? 'var(--gold)' : attackPhase === 'DIVING' ? 'var(--red)' : 'var(--cyan)'}`,
-                borderRadius: '6px'
-              }}>
-                <span style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  background: attackPhase === 'LOCKED' ? 'var(--gold)' : attackPhase === 'DIVING' ? 'var(--red)' : 'var(--cyan)',
-                  animation: 'pulse 0.8s infinite'
-                }} />
-                <span className="font-tech" style={{
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  color: attackPhase === 'LOCKED' ? 'var(--gold)' : attackPhase === 'DIVING' ? 'var(--red)' : 'var(--cyan)',
-                  letterSpacing: '1px'
-                }}>
-                  {attackPhase === 'SEARCHING' && '📡 VARRENDO SETOR // BUSCANDO ASSINATURA TÉRMICA...'}
-                  {attackPhase === 'LOCKED' && '🎯 ALVO ADQUIRIDO // TRAVA DE MIRA (LOCK-ON) 100%'}
-                  {attackPhase === 'DIVING' && '🔥 MERGULHO BALÍSTICO // DESVIANDO DE FLAK & TIROS'}
-                </span>
-              </div>
-
-              {/* Bússola Digital */}
-              <div className="font-tech" style={{
-                fontSize: '0.8rem',
-                color: 'var(--cyan)',
-                padding: '4px 12px',
-                background: 'rgba(5, 11, 20, 0.8)',
-                border: '1px solid var(--border-cyan)',
-                borderRadius: '4px'
-              }}>
-                HDG: 142° SE · PITCH: -38°
-              </div>
-            </div>
-
-            {/* Centro do HMD: Retículo Inteligente de Mira */}
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              {/* Linhas de Horizonte Artificial */}
-              <div style={{
-                position: 'absolute',
-                width: '180px',
-                height: '2px',
-                background: 'rgba(0, 242, 255, 0.25)',
-                boxShadow: '0 0 10px rgba(0, 242, 255, 0.3)'
-              }} />
-
-              {/* Retículo de Varredura / Caixa de Lock */}
-              <div style={{
-                width: attackPhase === 'SEARCHING' ? '120px' : '90px',
-                height: attackPhase === 'SEARCHING' ? '120px' : '90px',
-                border: `2px ${attackPhase === 'SEARCHING' ? 'dashed var(--cyan)' : attackPhase === 'LOCKED' ? 'solid var(--gold)' : 'solid var(--red)'}`,
-                borderRadius: attackPhase === 'SEARCHING' ? '50%' : '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: attackPhase === 'LOCKED' ? '0 0 30px rgba(255, 215, 0, 0.6)' : attackPhase === 'DIVING' ? '0 0 30px rgba(255, 74, 74, 0.6)' : '0 0 20px rgba(0, 242, 255, 0.3)'
-              }}>
-                {/* Ponto Central */}
-                <div style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  background: attackPhase === 'LOCKED' ? 'var(--gold)' : attackPhase === 'DIVING' ? 'var(--red)' : 'var(--cyan)'
-                }} />
-              </div>
-
-              {/* Tag do Alvo */}
-              {attackPhase !== 'SEARCHING' && (
-                <div className="font-tech" style={{
-                  marginTop: '8px',
-                  padding: '2px 8px',
-                  background: attackPhase === 'LOCKED' ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 74, 74, 0.2)',
-                  border: `1px solid ${attackPhase === 'LOCKED' ? 'var(--gold)' : 'var(--red)'}`,
-                  borderRadius: '4px',
-                  color: attackPhase === 'LOCKED' ? 'var(--gold)' : 'var(--red)',
-                  fontSize: '0.7rem',
-                  fontWeight: 800
-                }}>
-                  [TGT: CORVETA T-22 // DIST: {attackPhase === 'LOCKED' ? '2.4 KM' : '0.8 KM'}]
-                </div>
-              )}
-            </div>
-
-            {/* Rodapé do HMD: Dados de Telemetria Óptica */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="font-tech" style={{
-                fontSize: '0.75rem',
-                color: 'var(--text-muted)',
-                background: 'rgba(5, 11, 20, 0.85)',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-glass)'
-              }}>
-                SPD: <strong style={{ color: 'var(--gold)' }}>{attackPhase === 'DIVING' ? '310 KM/H' : '185 KM/H'}</strong> · ALT: <strong style={{ color: 'var(--cyan)' }}>{attackPhase === 'DIVING' ? '12M' : '75M'}</strong>
-              </div>
-
-              <div className="font-tech" style={{
-                fontSize: '0.75rem',
-                color: 'var(--cyan)',
-                background: 'rgba(5, 11, 20, 0.85)',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-cyan)'
-              }}>
-                OGIVA: <strong style={{ color: 'var(--green)' }}>ARMADA (TERMOBÁRICA)</strong>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* HUD DO DEFENSOR */}
-        {viewMode === 'defense' && (
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            left: '16px',
-            right: '16px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            pointerEvents: 'none',
-            zIndex: 10
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '6px 14px',
-              background: 'rgba(5, 11, 20, 0.85)',
-              border: '1px solid var(--red)',
-              borderRadius: '6px'
-            }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--red)', animation: 'pulse 0.8s infinite' }} />
-              <span className="font-tech" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--red)' }}>
-                ⚠️ DEFESA ANTIAÉREA EM FOGO CONTÍNUO // DRONE EM APROXIMAÇÃO
-              </span>
-            </div>
-
-            <div style={{
-              padding: '6px 14px',
-              background: 'rgba(5, 11, 20, 0.85)',
-              border: '1px solid var(--border-glass)',
-              borderRadius: '6px',
-              fontSize: '0.75rem',
-              fontFamily: 'monospace',
-              color: '#fff'
-            }}>
-              DETONAÇÕES: <span style={{ color: 'var(--gold)', fontWeight: 800 }}>{impactCount}</span>
-            </div>
-          </div>
-        )}
       </div>
-
-      <style>{`
-        @keyframes staticFlicker {
-          0% { opacity: 0.95; transform: translate(0, 0); }
-          25% { opacity: 0.9; transform: translate(-1px, 1px); }
-          50% { opacity: 1; transform: translate(1px, -1px); }
-          75% { opacity: 0.85; transform: translate(-1px, -1px); }
-          100% { opacity: 0.95; transform: translate(1px, 1px); }
-        }
-      `}</style>
     </section>
   );
 }
